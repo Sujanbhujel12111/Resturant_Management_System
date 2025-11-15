@@ -65,6 +65,9 @@ urlpatterns = [
     # Transaction History
     path('transaction_history/', views.transaction_history, name='transaction_history'),
     path('order_history_details/<str:order_id>/', views.order_history_details, name='order_history_details'),
+    path('order_update_notes/<str:order_id>/', views.order_update_notes, name='order_update_notes'),
+    # serve a favicon shortcut to avoid 404 in dev
+    path('favicon.ico', lambda request: __import__('django.shortcuts').shortcuts.redirect('/static/favicon.svg')),
 
 
 

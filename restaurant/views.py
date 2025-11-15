@@ -769,6 +769,36 @@ def order_history_details(request, order_id):
 
 from .forms import TableForm
 
+
+@login_required
+def order_update_notes(request, order_id):
+    """AJAX endpoint to update special_notes on an OrderHistory record.
+    Expects JSON POST: { "notes": "..." }
+    Returns JSON { success: true, notes: "..." }
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=405)
+
+    try:
+        payload = {}
+        if request.body:
+            try:
+                payload = json.loads(request.body.decode('utf-8') if isinstance(request.body, bytes) else request.body)
+            except Exception:
+                # if body is not JSON, try to parse as form-encoded
+                try:
+                    payload = request.POST.dict()
+                except Exception:
+                    payload = {}
+
+        notes = (payload.get('notes') or '').strip()
+        oh = get_object_or_404(OrderHistory, order_id=order_id)
+        oh.special_notes = notes
+        oh.save()
+        return JsonResponse({'success': True, 'notes': notes})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
 class TableListView(LoginRequiredMixin, ListView):
     model = Table
     template_name = 'restaurant/table_list.html'
