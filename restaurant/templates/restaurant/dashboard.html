@@ -1,0 +1,316 @@
+{% extends 'home/base.html' %}
+
+{% block title %}Dashboard - Restaurant Management System{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-3 p-md-4" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); min-height: 100vh;">
+    <!-- Welcome Header -->
+    <div class="mb-5 pt-2">
+        <div class="d-flex justify-content-between align-items-center flex-wrap">
+            <div>
+                <h1 class="display-5 fw-bold mb-2" style="color: #1a1a2e;">Dashboard</h1>
+                <p class="text-muted fs-6">Welcome back! Here's a real-time overview of your restaurant.</p>
+            </div>
+            <div class="text-end d-none d-md-block">
+                <div class="badge bg-success-subtle text-success fw-bold p-2">
+                    <i class="fas fa-circle-check me-2"></i> All Systems Operational
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Key Metrics Grid -->
+    <div class="row g-4 mb-5">
+        <!-- Pending Orders Card -->
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="card h-100 border-0 shadow-sm hover-shadow" style="transition: all 0.3s ease; cursor: pointer; border-left: 5px solid #ffc107;">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <p class="text-muted small fw-semibold mb-1 text-uppercase" style="letter-spacing: 0.5px;">Pending Orders</p>
+                            <h2 class="mb-2 fw-bold" style="color: #1a1a2e;">{{ pending_orders }}</h2>
+                            <div class="d-flex align-items-center">
+                                <span class="small text-muted">Awaiting processing</span>
+                            </div>
+                        </div>
+                        <div style="width: 50px; height: 50px; background: rgba(255, 193, 7, 0.15); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-list text-warning" style="font-size: 1.5rem;"></i>
+                        </div>
+                    </div>
+                    <div class="progress" style="height: 4px;">
+                        <div class="progress-bar bg-warning" role="progressbar" style="width: 75%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Tables Card -->
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="card h-100 border-0 shadow-sm hover-shadow" style="transition: all 0.3s ease; cursor: pointer; border-left: 5px solid #28a745;">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <p class="text-muted small fw-semibold mb-1 text-uppercase" style="letter-spacing: 0.5px;">Active Tables</p>
+                            <h2 class="mb-2 fw-bold" style="color: #1a1a2e;">{{ active_tables }}</h2>
+                            <div class="d-flex align-items-center">
+                                <span class="small text-muted">Currently in use</span>
+                            </div>
+                        </div>
+                        <div style="width: 50px; height: 50px; background: rgba(40, 167, 69, 0.15); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-chair text-success" style="font-size: 1.5rem;"></i>
+                        </div>
+                    </div>
+                    <div class="progress" style="height: 4px;">
+                        <div class="progress-bar bg-success" role="progressbar" style="width: 60%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Menu Items Card -->
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="card h-100 border-0 shadow-sm hover-shadow" style="transition: all 0.3s ease; cursor: pointer; border-left: 5px solid #17a2b8;">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <p class="text-muted small fw-semibold mb-1 text-uppercase" style="letter-spacing: 0.5px;">Menu Items</p>
+                            <h2 class="mb-2 fw-bold" style="color: #1a1a2e;">{{ total_menu_items }}</h2>
+                            <div class="d-flex align-items-center">
+                                <span class="small text-muted">Available dishes</span>
+                            </div>
+                        </div>
+                        <div style="width: 50px; height: 50px; background: rgba(23, 162, 184, 0.15); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-book-open text-info" style="font-size: 1.5rem;"></i>
+                        </div>
+                    </div>
+                    <div class="progress" style="height: 4px;">
+                        <div class="progress-bar bg-info" role="progressbar" style="width: 85%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Today's Revenue Card -->
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="card h-100 border-0 shadow-sm hover-shadow" style="transition: all 0.3s ease; cursor: pointer; border-left: 5px solid #dc3545;">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <p class="text-muted small fw-semibold mb-1 text-uppercase" style="letter-spacing: 0.5px;">Revenue Today</p>
+                            <h2 class="mb-2 fw-bold" style="color: #1a1a2e;">Rs.{{ today_revenue|default:"0" }}</h2>
+                            <div class="d-flex align-items-center">
+                                <span class="small text-muted">Total collected</span>
+                            </div>
+                        </div>
+                        <div style="width: 50px; height: 50px; background: rgba(220, 53, 69, 0.15); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-money-bill-wave text-danger" style="font-size: 1.5rem;"></i>
+                        </div>
+                    </div>
+                    <div class="progress" style="height: 4px;">
+                        <div class="progress-bar bg-danger" role="progressbar" style="width: 45%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row g-4 mb-5">
+        <!-- Menu Management Card -->
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="card h-100 border-0 shadow-sm overflow-hidden hover-shadow" style="transition: all 0.3s ease;">
+                <div style="height: 4px; background: linear-gradient(90deg, #007bff, #0056b3);"></div>
+                <div class="card-body text-center">
+                    <div class="mb-3 p-3" style="background: rgba(0, 123, 255, 0.1); border-radius: 10px; width: fit-content; margin-left: auto; margin-right: auto;">
+                        <i class="fas fa-utensils" style="font-size: 2rem; color: #007bff;"></i>
+                    </div>
+                    <h5 class="card-title fw-bold mb-2" style="color: #1a1a2e;">Menu Management</h5>
+                    <p class="card-text text-muted small mb-3">Add, edit or manage menu items</p>
+                    <a href="{% url 'restaurant:menuitem_list' %}" class="btn btn-primary btn-sm w-100 rounded-pill">
+                        <i class="fas fa-arrow-right me-2"></i>Go to Menu
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- View Orders Card -->
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="card h-100 border-0 shadow-sm overflow-hidden hover-shadow" style="transition: all 0.3s ease;">
+                <div style="height: 4px; background: linear-gradient(90deg, #28a745, #1e7e34);"></div>
+                <div class="card-body text-center">
+                    <div class="mb-3 p-3" style="background: rgba(40, 167, 69, 0.1); border-radius: 10px; width: fit-content; margin-left: auto; margin-right: auto;">
+                        <i class="fas fa-receipt" style="font-size: 2rem; color: #28a745;"></i>
+                    </div>
+                    <h5 class="card-title fw-bold mb-2" style="color: #1a1a2e;">View Orders</h5>
+                    <p class="card-text text-muted small mb-3">Track and manage all orders</p>
+                    <a href="{% url 'restaurant:order_list' %}" class="btn btn-success btn-sm w-100 rounded-pill">
+                        <i class="fas fa-arrow-right me-2"></i>View Orders
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Kitchen View Card -->
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="card h-100 border-0 shadow-sm overflow-hidden hover-shadow" style="transition: all 0.3s ease;">
+                <div style="height: 4px; background: linear-gradient(90deg, #fd7e14, #e06c00);"></div>
+                <div class="card-body text-center">
+                    <div class="mb-3 p-3" style="background: rgba(253, 126, 20, 0.1); border-radius: 10px; width: fit-content; margin-left: auto; margin-right: auto;">
+                        <i class="fas fa-fire" style="font-size: 2rem; color: #fd7e14;"></i>
+                    </div>
+                    <h5 class="card-title fw-bold mb-2" style="color: #1a1a2e;">Kitchen View</h5>
+                    <p class="card-text text-muted small mb-3">Monitor kitchen orders in real-time</p>
+                    <a href="{% url 'restaurant:kitchen' %}" class="btn btn-warning btn-sm w-100 rounded-pill">
+                        <i class="fas fa-arrow-right me-2"></i>Go to Kitchen
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Payment Processing Card -->
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="card h-100 border-0 shadow-sm overflow-hidden hover-shadow" style="transition: all 0.3s ease;">
+                <div style="height: 4px; background: linear-gradient(90deg, #dc3545, #bb2d3b);"></div>
+                <div class="card-body text-center">
+                    <div class="mb-3 p-3" style="background: rgba(220, 53, 69, 0.1); border-radius: 10px; width: fit-content; margin-left: auto; margin-right: auto;">
+                        <i class="fas fa-credit-card" style="font-size: 2rem; color: #dc3545;"></i>
+                    </div>
+                    <h5 class="card-title fw-bold mb-2" style="color: #1a1a2e;">Payment Processing</h5>
+                    <p class="card-text text-muted small mb-3">Process and track payments</p>
+                    {% if orders %}
+                        <a href="{% url 'restaurant:process_payment' pk=orders.0.id %}" class="btn btn-danger btn-sm w-100 rounded-pill">
+                            <i class="fas fa-arrow-right me-2"></i>Go to Payments
+                        </a>
+                    {% else %}
+                        <button class="btn btn-danger btn-sm w-100 rounded-pill" disabled>
+                            <i class="fas fa-ban me-2"></i>No orders
+                        </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="row g-4">
+        <!-- Recent Orders -->
+        <div class="col-12 col-lg-6">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-header border-bottom bg-light">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-clock text-primary me-2" style="font-size: 1.2rem;"></i>
+                        <h5 class="card-title mb-0 fw-bold" style="color: #1a1a2e;">Recent Orders</h5>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    {% if orders %}
+                        <div class="list-group list-group-flush">
+                            {% for order in orders|slice:":5" %}
+                            <div class="list-group-item d-flex justify-content-between align-items-center px-4 py-3 border-0 border-bottom" style="transition: background-color 0.2s;">
+                                <div>
+                                    <h6 class="mb-1 fw-semibold" style="color: #1a1a2e;">
+                                        <i class="fas fa-hashtag text-muted me-2" style="font-size: 0.8rem;"></i>Order #{{ order.order_id }}
+                                    </h6>
+                                    <p class="text-muted small mb-0">
+                                        <i class="fas fa-indian-rupee-sign me-1" style="font-size: 0.7rem;"></i>{{ order.total_amount }}
+                                    </p>
+                                </div>
+                                <span class="badge rounded-pill {% if order.status == 'completed' %}bg-success
+                                    {% elif order.status == 'preparing' %}bg-warning text-dark
+                                    {% else %}bg-info{% endif %} px-3 py-2">
+                                    <i class="fas fa-circle me-1" style="font-size: 0.5rem;"></i>{{ order.status|title }}
+                                </span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="p-5 text-center">
+                            <i class="fas fa-inbox text-muted mb-3" style="font-size: 2.5rem; opacity: 0.5;"></i>
+                            <p class="text-muted mt-3">No recent orders</p>
+                        </div>
+                    {% endif %}
+                </div>
+                {% if orders %}
+                <div class="card-footer bg-light border-top">
+                    <a href="{% url 'restaurant:order_list' %}" class="btn btn-sm btn-outline-primary w-100">
+                        <i class="fas fa-arrow-right me-2"></i>View All Orders
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- System Status -->
+        <div class="col-12 col-lg-6">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-header border-bottom bg-light">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-cogs text-success me-2" style="font-size: 1.2rem;"></i>
+                        <h5 class="card-title mb-0 fw-bold" style="color: #1a1a2e;">System Status</h5>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center pb-4 border-bottom">
+                        <div>
+                            <p class="fw-semibold mb-0" style="color: #1a1a2e;">Server Status</p>
+                            <small class="text-muted">Backend service</small>
+                        </div>
+                        <span class="badge bg-success-subtle text-success px-3 py-2 rounded-pill">
+                            <i class="fas fa-circle me-2" style="font-size: 0.6rem;"></i>Running
+                        </span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center py-4 border-bottom">
+                        <div>
+                            <p class="fw-semibold mb-0" style="color: #1a1a2e;">Database</p>
+                            <small class="text-muted">SQLite connection</small>
+                        </div>
+                        <span class="badge bg-success-subtle text-success px-3 py-2 rounded-pill">
+                            <i class="fas fa-circle me-2" style="font-size: 0.6rem;"></i>Connected
+                        </span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center py-4 border-bottom">
+                        <div>
+                            <p class="fw-semibold mb-0" style="color: #1a1a2e;">API Health</p>
+                            <small class="text-muted">Response time</small>
+                        </div>
+                        <span class="badge bg-info-subtle text-info px-3 py-2 rounded-pill">
+                            <i class="fas fa-circle me-2" style="font-size: 0.6rem;"></i>&lt;100ms
+                        </span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center pt-4">
+                        <div>
+                            <p class="fw-semibold mb-0" style="color: #1a1a2e;">Last Updated</p>
+                            <small class="text-muted">Cache timestamp</small>
+                        </div>
+                        <span class="text-success fw-semibold">Just now</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .hover-shadow {
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075) !important;
+    }
+    
+    .hover-shadow:hover {
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+        transform: translateY(-2px);
+    }
+    
+    .list-group-item:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .progress {
+        background-color: #e9ecef;
+    }
+    
+    .badge {
+        font-weight: 600;
+        letter-spacing: 0.3px;
+    }
+</style>
+{% endblock %}

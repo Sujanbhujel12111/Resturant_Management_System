@@ -1,0 +1,1020 @@
+{% extends 'restaurant/base.html' %}
+{% load custom_filters %}
+
+{% block title %}Order Details{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-10">
+    <h1 class="text-4xl fw-bold mb-4">Order Details</h1>
+    <div class="bg-white p-6 rounded shadow">
+        <!-- Basic Order Info -->
+        <div class="mb-6">
+            <p class="h5">Order #{{ order.order_id }}</p>
+            <p>Customer: {{ order.customer_name }}</p>
+            <p>Phone: {{ order.customer_phone }}</p>
+            
+            <!-- Order Type Specific Information -->
+            {% if order.table %}
+                <p>Order Type: table #{{ order.table.number }}</p>
+            {% elif order.order_type == 'delivery' %}
+                <div class="mt-3 p-4 bg-primary rounded">
+                    <h3 class="fw-bold mb-2">Delivery Information</h3>
+                    <p>Address: {{ order.delivery_address }}</p>
+                    <p>Delivery Charge: Rs.{{ order.delivery_charge }}</p>
+                </div>
+            {% elif order.order_type == 'takeaway' %}
+                <p>Order Type: Takeaway</p>
+            {% else %}
+                <p>Order Type: {{ order.order_type|capfirst }}</p>
+            {% endif %}
+
+            {% if order.special_notes %}
+            <div class="mt-3">
+                <h3 class="fw-bold">Special Notes:</h3>
+                <p>{{ order.special_notes }}</p>
+            </div>
+            {% endif %}
+        </div>
+
+
+        <!-- Order Items Section -->
+        <div class="mb-6">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="h3 fw-bold">Order Items</h2>
+                <button onclick="openAddItemModal()" class="btn btn-success">
+                    Add Item
+                </button>
+            </div>
+            
+            <table class="w-100 table table-bordered" id="order-items-table">
+                <thead>
+                    <tr class="bg-light">
+                        <th class="py-2 px-3 border-bottom">Item</th>
+                        <th class="py-2 px-3 border-bottom">Quantity</th>
+                        <th class="py-2 px-3 border-bottom">Price</th>
+                        <th class="py-2 px-3 border-bottom">Total</th>
+                        <th class="py-2 px-3 border-bottom">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order_item in order.items.all %}
+                    <tr class="bg-light" id="item-row-{{ order_item.id }}">
+                        <td class="py-2 px-3 border-bottom">{{ order_item.item.name }}</td>
+                        <td class="py-2 px-3 border-bottom">
+                            <input type="number" 
+                                   value="{{ order_item.quantity }}" 
+                                   min="1" 
+                                   class="w-20 px-2 py-1 border rounded"
+                                   readonly>
+                        </td>
+                        <td class="py-2 px-3 border-bottom">Rs.{{ order_item.item.price }}</td>
+                        <td class="py-2 px-3 border-bottom">Rs.{{ order_item.quantity|multiply:order_item.item.price }}</td>
+                        <td class="py-2 px-3 border-bottom">
+                            <button type="button" onclick="removeOrderItem('{{ order_item.id }}')" class="btn btn-link text-danger">
+                                Remove
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Add Item Modal -->
+        <div id="add-item-modal" class="position-fixed top-0 start-0 end-0 bottom-0 bg-black d-none align-items-center justify-content-center">
+            <div class="bg-white p-4 rounded" style="max-width: 24rem;">
+                <h3 class="h4 fw-bold mb-3">Add Item</h3>
+                <div class="mb-3">
+                    <label class="form-label">Category</label>
+                    <select id="category-filter" class="form-select form-select-sm" onchange="filterMenuItems()">
+                        <option value="">All Categories</option>
+                        {% for category in categories %}
+                            <option value="{{ category.id }}">{{ category.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Item</label>
+                    <select id="menu-item" class="form-select form-select-sm">
+                        {% for item in menu_items %}
+                            <option value="{{ item.id }}" data-category="{{ item.category.id }}" data-price="{{ item.price }}">
+                                {{ item.name }} - Rs.{{ item.price }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Quantity</label>
+                    <input type="number" id="item-quantity" value="1" min="1" class="form-control form-control-sm">
+                </div>
+                <div class="d-flex justify-content-end gap-2">
+                    <button onclick="closeAddItemModal()" class="btn btn-secondary">
+                        Cancel
+                    </button>
+                    <button onclick="addItemToOrder()" class="btn btn-primary text-white">
+                        Add
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-3">
+            <p class="h4 fw-bold">Subtotal: Rs.{{ order.total_amount }}</p>
+            {% if order.order_type == 'delivery' %}
+                <p class="h4">Delivery Charge: Rs.{{ order.delivery_charge }}</p>
+                    <p class="h4 fw-bold">Total Amount: Rs.{{ order.total_amount|add:order.delivery_charge }}</p>
+                    <div id="canonical-total" data-total="{{ order.total_amount|add:order.delivery_charge }}" style="display:none"></div>
+            {% else %}
+                    <p class="h4 fw-bold">Total Amount: Rs.{{ order.total_amount }}</p>
+                    <div id="canonical-total" data-total="{{ order.total_amount }}" style="display:none"></div>
+            {% endif %}
+            <p class="h4 fw-bold">Remaining Amount: Rs.<span id="remaining-amount">{% if order.order_type == 'delivery' %}{{ order.total_amount|add:order.delivery_charge }}{% else %}{{ order.total_amount }}{% endif %}</span></p>
+        </div>
+
+        <!-- Order Status and Completion Info -->
+        <div class="mt-4 p-4 bg-light rounded border-start border-4 border-danger">
+            <div class="row g-3">
+                <div class="col-12 col-md-6 col-lg-4">
+                    <p class="small fw-bold text-secondary">Order Status:</p>
+                    <p class="h5 fw-bold text-danger">{{ order.get_status_display }}</p>
+                </div>
+                {% if order.completed_by %}
+                <div class="col-12 col-md-6 col-lg-4">
+                    <p class="small fw-bold text-secondary">Completed By:</p>
+                    <p class="h5 fw-bold text-success">{{ order.completed_by.get_full_name|default:order.completed_by.username }}</p>
+                </div>
+                <div class="col-12 col-md-6 col-lg-4">
+                    <p class="small fw-bold text-secondary">Completion User:</p>
+                    <p class="small text-secondary">@{{ order.completed_by.username }}</p>
+                </div>
+                {% endif %}
+                <div>
+                    <p class="text-sm text-600 fw-bold">Payment Status:</p>
+                    <p class="h5 fw-bold {% if order.payment_status == 'paid' %}text-success{% else %}text-orange-600{% endif %}">
+                        {{ order.payment_status|upper }}
+                    </p>
+                </div>
+                <div>
+                    <p class="text-sm text-600 fw-bold">Created At:</p>
+                    <p class="text-sm text-700">{{ order.created_at|date:"d-M-Y H:i" }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-600 fw-bold">Updated At:</p>
+                    <p class="text-sm text-700">{{ order.updated_at|date:"d-M-Y H:i" }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-3">
+            <h2 class="h3 fw-bold mb-3">Settled Payments</h2>
+            <table class="w-100 table table-bordered">
+                <thead>
+                    <tr class="bg-light">
+                        <th class="py-2 px-3 border-bottom">Payment Method</th>
+                        <th class="py-2 px-3 border-bottom">Amount</th>
+                        <th class="py-2 px-3 border-bottom">Transaction ID</th>
+                        <th class="py-2 px-3 border-bottom">Date Edited</th>
+                        <th class="py-2 px-3 border-bottom">Edited By</th>
+                        <th class="py-2 px-3 border-bottom">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="settled-payments">
+                    {% for payment in order.payments.all %}
+                    <tr id="payment-{{ payment.id }}">
+                        <td class="payment-method">{{ payment.payment_method|capfirst }}</td>
+                        <td class="payment-amount">Rs.{{ payment.amount }}</td>
+                        <td class="payment-transaction-id">{{ payment.transaction_id }}</td>
+                        <td class="payment-date-edited">{{ payment.date_edited }}</td>
+                        <td class="payment-edited-by">{{ payment.edited_by.username }}</td>
+                        <td>
+                            <button type="button" onclick="editPayment('{{ payment.id }}')" class="text-primary">Edit</button>
+                            <button type="button" onclick="savePayment('{{ payment.id }}')" class="text-success d-none">Save</button>
+                            <button type="button" onclick="deletePayment('{{ payment.id }}')" class="text-danger">Delete</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="mt-3">
+            <h2 class="h3 fw-bold mb-3">Add Payment</h2>
+            <form method="post" action="{% url 'restaurant:process_payment' pk=order.id %}">
+                {% csrf_token %}
+                <div id="payment-forms">
+                    <div class="payment-form">
+                        <select name="payment_method" class="py-2 px-3 border rounded">
+                            {% for method in payment_methods %}
+                                <option value="{{ method.0 }}">{{ method.1 }}</option>
+                            {% endfor %}
+                        </select>
+                        <input type="number" name="amount" step="0.01" class="py-2 px-3 border rounded" placeholder="Amount" oninput="updateRemainingAmount()">
+                        <input type="text" name="transaction_id" class="py-2 px-3 border rounded" placeholder="Transaction ID (optional)">
+                    </div>
+                </div>
+                <button type="button" onclick="addPaymentForm()" class="py-2 px-3 bg-primary text-white rounded bg-primary mt-2">Add Another Payment</button>
+                <button type="submit" class="py-2 px-3 bg-success text-white rounded bg-success mt-2">Settle Payment</button>
+            </form>
+        </div>
+
+
+
+
+
+        <!-- Print Buttons -->
+        <div class="d-flex justify-content-end gap-2 mt-4">
+            <button onclick="openPrintPreview('kot')" class="py-2 px-3 bg-primary text-white rounded bg-primary">
+                Print KOT
+            </button>
+            <button onclick="openPrintPreview('bill')" class="py-2 px-3 bg-success text-white rounded bg-success">
+                Print Bill
+            </button>
+        </div>
+
+
+<!-- Print Preview Modal -->
+<div id="printPreviewModal" class="position-fixed top-0 start-0 end-0 bottom-0 bg-dark d-none z-50" style="opacity: 0.5;">
+    <div class="position-fixed bg-white rounded shadow-lg d-flex flex-column" style="top: 20px; left: 20px; right: 20px; bottom: 20px;">
+        <div class="p-4 border-bottom d-flex justify-content-between align-items-center">
+            <h2 class="h3 fw-bold" id="previewTitle">Print Preview</h2>
+            <div class="d-flex gap-2">
+                <button onclick="printDocument()" class="btn btn-primary btn-sm">
+                    Print
+                </button>
+                <button onclick="downloadPDF()" class="btn btn-success btn-sm">
+                    Download PDF
+                </button>
+                <button onclick="closePreview()" class="btn btn-secondary btn-sm">
+                    Close
+                </button>
+            </div>
+        </div>
+        <div id="previewContent" class="flex-1 p-4 overflow-auto bg-light">
+            <div class="preview-container bg-white shadow mx-auto p-8"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Print Templates -->
+<div id="kotTemplate" class="d-none">
+    <div class="print-wrapper">
+        <div class="text-center receipt-content">
+            <h1 class="receipt-title">KITCHEN ORDER TICKET</h1>
+            <div class="receipt-header">
+                <p>Order #{{ order.order_id }}</p>
+                <p>Date: {{ order.created_at|date:"d/m/Y H:i" }}</p>
+                {% if order.table %}
+                    <p>table #{{ order.table.number }}</p>
+                {% else %}
+                    <p>{{ order.order_type|title }}</p>
+                {% endif %}
+            </div>
+            
+            <table class="receipt-table">
+                <thead>
+                    <tr>
+                        <th class="item-col">Item</th>
+                        <th class="qty-col">Qty</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order_item in order.items.all %}
+                    <tr>
+                        <td class="item-name">{{ order_item.item.name }}</td>
+                        <td class="item-qty">{{ order_item.quantity }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            
+            {% if order.special_notes %}
+            <div class="special-notes">
+                <strong>Special Notes:</strong>
+                <p>{{ order.special_notes }}</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div id="billTemplate" class="d-none">
+    <div class="print-wrapper">
+        <div class="text-center receipt-content">
+            <h1 class="receipt-title">RESTAURANT NAME</h1>
+            <div class="receipt-header">
+                <p>Address Line 1</p>
+                <p>Address Line 2</p>
+                <p>Phone: XXX-XXX-XXXX</p>
+                <hr class="receipt-divider">
+                <p>Bill #{{ order.order_id }}</p>
+                <p>Date: {{ order.created_at|date:"d/m/Y H:i" }}</p>
+                {% if order.table %}
+                    <p>Order Type: table #{{ order.table.number }}</p>
+                {% elif order.order_type == 'delivery' %}
+                    <p>Delivery Order</p>
+                    <p>Address: {{ order.delivery_address }}</p>
+                {% else %}
+                    <p>{{ order.order_type|title }}</p>
+                {% endif %}
+                <p>Customer: {{ order.customer_name }}</p>
+                <p>Phone: {{ order.customer_phone }}</p>
+            </div>
+            
+            <table class="receipt-table">
+                <thead>
+                    <tr>
+                        <th class="item-col">Item</th>
+                        <th class="qty-col">Qty</th>
+                        <th class="price-col">Price</th>
+                        <th class="total-col">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order_item in order.items.all %}
+                    <tr>
+                        <td class="item-name">{{ order_item.item.name }}</td>
+                        <td class="item-qty">{{ order_item.quantity }}</td>
+                        <td class="item-price">Rs.{{ order_item.item.price }}</td>
+                        <td class="item-total">Rs.{{ order_item.quantity|multiply:order_item.item.price }}</td>
+                    </tr>
+                    {% endfor %}
+                    <tr class="total-row">
+                        <td colspan="3" class="text-end">Subtotal:</td>
+                        <td class="item-total">Rs.{{ order.total_amount }}</td>
+                    </tr>
+                    {% if order.order_type == 'delivery' %}
+                    <tr>
+                        <td colspan="3" class="text-end">Delivery Charge:</td>
+                        <td class="item-total">Rs.{{ order.delivery_charge }}</td>
+                    </tr>
+                    <tr class="total-row">
+                        <td colspan="3" class="text-end">Total:</td>
+                        <td class="item-total">Rs.{{ order.total_amount|add:order.delivery_charge }}</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+            
+            <div class="payment-details">
+                <p class="fw-bold">Payment Details:</p>
+                {% for payment in order.payments.all %}
+                <p>{{ payment.payment_method|capfirst }}: Rs.{{ payment.amount }}</p>
+                {% endfor %}
+            </div>
+            
+            <div class="receipt-footer">
+                <p class="fw-bold">Thank you for visiting!</p>
+                <p>Please visit again</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<style>
+    @media print {
+        body * {
+            visibility: d-none;
+        }
+        .preview-container, .preview-container * {
+            visibility: visible;
+        }
+        .preview-container {
+            position: position-absolute;
+            left: 0;
+            top: 0;
+            width: 80mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+    }
+
+    .print-wrapper {
+        width: 80mm;
+        margin: 0 auto;
+        background: white;
+        padding: 8px;
+    }
+
+    .receipt-content {
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        line-height: 1.2;
+    }
+
+    .receipt-title {
+        font-size: 14px;
+        font-weight: bold;
+        margin-bottom: 10px;
+    }
+
+    .receipt-header {
+        margin-bottom: 15px;
+    }
+
+    .receipt-header p {
+        margin: 3px 0;
+    }
+
+    .receipt-divider {
+        border-top: 1px dashed #000;
+        margin: 10px 0;
+    }
+
+    .receipt-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 10px 0;
+    }
+
+    .receipt-table th,
+    .receipt-table td {
+        padding: 3px;
+        text-align: left;
+    }
+
+    .item-col { width: 50%; }
+    .qty-col { width: 15%; text-align: right; }
+    .price-col { width: 17%; text-align: right; }
+    .total-col { width: 18%; text-align: right; }
+
+    .item-name { text-align: left; }
+    .item-qty { text-align: right; }
+    .item-price { text-align: right; }
+    .item-total { text-align: right; }
+
+    .total-row {
+        border-top: 1px dashed #000;
+        font-weight: bold;
+    }
+
+    .payment-details {
+        margin: 15px 0;
+        text-align: left;
+    }
+
+    .special-notes {
+        margin: 15px 0;
+        text-align: left;
+        border-top: 1px dashed #000;
+        padding-top: 10px;
+    }
+
+    .receipt-footer {
+        margin-top: 20px;
+        border-top: 1px dashed #000;
+        padding-top: 10px;
+    }
+</style>
+
+
+
+
+
+
+        <div class="mt-3 d-flex gap-3">
+            {% if order.status != 'completed' and order.status != 'cancelled' %}
+                <a href="{% url 'restaurant:close_order' pk=order.id %}" class="btn btn-primary">Close Order</a>
+            {% endif %}
+            {% if order.status != 'cancelled' %}
+                <!-- Cancel button triggers modal -->
+                <button onclick="openCancelModal()" class="btn btn-danger">Cancel Order</button>
+            {% endif %}
+            <a href="{% url 'restaurant:order_list' %}" class="btn btn-secondary">Back to Orders</a>
+        </div>
+
+        <!-- Cancel Confirmation Modal -->
+        <div id="cancel-modal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 9999;">
+            <div class="bg-white p-4 rounded shadow-lg" style="max-width: 24rem; width: 90%;">
+                <h3 class="h4 fw-bold mb-3">Confirm Cancellation</h3>
+                
+                {% if has_settled_payments %}
+                    <div class="alert alert-warning mb-3" role="alert">
+                        <strong>⚠️ Cannot Cancel Order</strong>
+                        <p class="mb-0">This order has Rs.{{ settled_amount }} in settled payments. Please clear the settled amount before cancelling.</p>
+                    </div>
+                    <div class="d-flex justify-content-end gap-2">
+                        <button type="button" onclick="closeCancelModal()" class="btn btn-secondary">Close</button>
+                    </div>
+                {% else %}
+                    <p class="mb-3">Are you sure you want to cancel Order #{{ order.order_id }}? This cannot be undone.</p>
+                    <form method="post" action="{% url 'restaurant:cancel_order' pk=order.id %}" onsubmit="console.log('Form submitting to:', this.action); return true;">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label">Cancellation Reason (optional)</label>
+                            <input type="text" name="cancellation_reason" class="form-control form-control-sm" placeholder="e.g., Customer request, Kitchen issue, etc.">
+                        </div>
+                        <div class="d-flex justify-content-end gap-2">
+                            <button type="button" onclick="closeCancelModal()" class="btn btn-secondary">No, keep order</button>
+                            <button type="submit" class="btn btn-danger">Yes, cancel order</button>
+                        </div>
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+
+
+<script>
+
+
+    const csrf_token = '{{ csrf_token }}';
+    const orderId = '{{ order.order_id }}';
+
+// Payment Management Functions
+function addPaymentForm() {
+    const paymentForms = document.getElementById('payment-forms');
+    const newPaymentForm = document.createElement('div');
+    newPaymentForm.classList.add('payment-form', 'mt-2');
+    newPaymentForm.innerHTML = `
+        <select name="payment_method" class="py-2 px-3 border rounded">
+            {% for method in payment_methods %}
+                <option value="{{ method.0 }}">{{ method.1 }}</option>
+            {% endfor %}
+        </select>
+        <input type="number" name="amount" step="0.01" class="py-2 px-3 border rounded ml-2" 
+               placeholder="Amount" oninput="updateRemainingAmount()">
+        <input type="text" name="transaction_id" class="py-2 px-3 border rounded ml-2" 
+               placeholder="Transaction ID (optional)">
+    `;
+    paymentForms.appendChild(newPaymentForm);
+}
+
+// consolidated updateRemainingAmount below (single implementation)
+
+function editPayment(id) {
+    const paymentItem = document.getElementById(`payment-${id}`);
+    const paymentMethod = paymentItem.querySelector('.payment-method').innerText;
+    const amount = paymentItem.querySelector('.payment-amount').innerText.replace('Rs.', '');
+    const transactionId = paymentItem.querySelector('.payment-transaction-id').innerText;
+
+    paymentItem.querySelector('.payment-method').innerHTML = `
+        <select class="py-2 px-3 border rounded">
+            {% for method in payment_methods %}
+                <option value="{{ method.0 }}" ${paymentMethod === '{{ method.1 }}' ? 'selected' : ''}>
+                    {{ method.1 }}
+                </option>
+            {% endfor %}
+        </select>
+    `;
+    paymentItem.querySelector('.payment-amount').innerHTML = 
+        `<input type="number" value="${amount}" class="py-2 px-3 border rounded">`;
+    paymentItem.querySelector('.payment-transaction-id').innerHTML = 
+        `<input type="text" value="${transactionId}" class="py-2 px-3 border rounded">`;
+
+    paymentItem.querySelector('.text-primary').classList.add('d-none');
+    paymentItem.querySelector('.text-success').classList.remove('d-none');
+}
+
+function savePayment(id) {
+    const paymentItem = document.getElementById(`payment-${id}`);
+    const paymentMethod = paymentItem.querySelector('.payment-method select').value;
+    const amount = paymentItem.querySelector('.payment-amount input').value;
+    const transactionId = paymentItem.querySelector('.payment-transaction-id input').value;
+
+    fetch(`/restaurant/payment/${id}/edit/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({
+            payment_method: paymentMethod,
+            amount: amount,
+            transaction_id: transactionId
+        }),
+    }).then(response => {
+        if (response.ok) {
+            paymentItem.querySelector('.payment-method').innerText = paymentMethod;
+            paymentItem.querySelector('.payment-amount').innerText = `Rs.${amount}`;
+            paymentItem.querySelector('.payment-transaction-id').innerText = transactionId;
+            paymentItem.querySelector('.payment-date-edited').innerText = new Date().toLocaleString();
+            paymentItem.querySelector('.payment-edited-by').innerText = '{{ request.user.username }}';
+
+            paymentItem.querySelector('.text-primary').classList.remove('d-none');
+            paymentItem.querySelector('.text-success').classList.add('d-none');
+
+            updateRemainingAmount();
+        }
+    });
+}
+
+function deletePayment(id) {
+    if (confirm('Are you sure you want to delete this payment?')) {
+        fetch(`/restaurant/payment/${id}/delete/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+        }).then(response => {
+            if (response.ok) {
+                const paymentItem = document.getElementById(`payment-${id}`);
+                paymentItem.remove();
+                updateRemainingAmount();
+            }
+        });
+    }
+}
+
+
+// Order Item Management Functions
+function openAddItemModal() {
+    document.getElementById('add-item-modal').classList.remove('d-none');
+    document.getElementById('add-item-modal').classList.add('flex');
+    filterMenuItems(); // Initialize filtered items
+}
+
+function closeAddItemModal() {
+    document.getElementById('add-item-modal').classList.add('d-none');
+    document.getElementById('add-item-modal').classList.remove('flex');
+    // Reset form
+    document.getElementById('category-filter').value = '';
+    document.getElementById('item-quantity').value = 1;
+}
+
+function filterMenuItems() {
+    const categoryId = document.getElementById('category-filter').value;
+    const menuItems = document.getElementById('menu-item').options;
+    
+    for (let item of menuItems) {
+        if (!categoryId || item.dataset.category === categoryId) {
+            item.hidden = false;
+        } else {
+            item.hidden = true;
+        }
+    }
+}
+
+function calculateTotal(baseTotal, deliveryCharge = 0) {
+    return parseFloat(baseTotal) + parseFloat(deliveryCharge);
+}
+
+function updateDisplayTotals(subtotal, deliveryCharge = 0) {
+    const total = calculateTotal(subtotal, deliveryCharge);
+    
+    // Update all relevant displays
+    document.querySelectorAll('.h4.fw-bold').forEach(el => {
+        if (el.textContent.includes('Subtotal:')) {
+            el.textContent = `Subtotal: Rs.${parseFloat(subtotal).toFixed(2)}`;
+        }
+        if (el.textContent.includes('Total Amount:')) {
+            el.textContent = `Total Amount: Rs.${total.toFixed(2)}`;
+        }
+    });
+    
+    updateRemainingAmount();
+}
+
+function updateRemainingAmount() {
+    // Get total amount from canonical data attribute if present, otherwise parse visible Total Amount
+    let totalAmount = 0;
+    const canonical = document.getElementById('canonical-total');
+    if (canonical && canonical.dataset && canonical.dataset.total) {
+        totalAmount = parseFloat(canonical.dataset.total) || 0;
+    } else {
+        const totalAmountElement = Array.from(document.querySelectorAll('.h4.fw-bold'))
+            .find(el => el.textContent.includes('Total Amount:'));
+        if (totalAmountElement) {
+            totalAmount = parseFloat(totalAmountElement.textContent.split('Rs.')[1]) || 0;
+        }
+    }
+
+    // Calculate settled payments (from rendered settled payments)
+    let settledAmount = 0;
+    const paymentElements = document.querySelectorAll('.payment-amount');
+    console.log('[debug] Found payment-amount elements:', paymentElements.length);
+    paymentElements.forEach((element, idx) => {
+        const text = element.textContent || element.innerText || '';
+        // Remove "Rs." prefix and any whitespace, then parse the number
+        const cleanedText = text.replace(/Rs\.\s*/g, '').trim();
+        const amount = parseFloat(cleanedText) || 0;
+        console.log(`[debug] Payment ${idx}: text="${text}", cleaned="${cleanedText}", parsed amount=${amount}`);
+        settledAmount += amount;
+    });
+
+    // Calculate pending/new payments from input fields
+    let pendingAmount = 0;
+    const amountInputs = document.querySelectorAll('input[name="amount"]');
+    amountInputs.forEach(input => {
+        pendingAmount += parseFloat(input.value) || 0;
+    });
+
+    // Update remaining amount display
+    const remainingAmount = totalAmount - settledAmount - pendingAmount;
+    const remainingEl = document.getElementById('remaining-amount');
+    if (remainingEl) remainingEl.textContent = remainingAmount.toFixed(2);
+
+    // Debug logging to help diagnose mismatches
+    if (window && window.console && typeof window.console.log === 'function') {
+        console.log('[debug] updateRemainingAmount', {
+            totalAmount: totalAmount,
+            settledAmount: settledAmount,
+            pendingAmount: pendingAmount,
+            remainingAmount: remainingAmount
+        });
+    }
+
+    // Highlight negative remaining amount in red
+    const remainingContainer = remainingEl ? remainingEl.parentElement : null;
+    if (remainingContainer) {
+        if (remainingAmount < 0) {
+            remainingContainer.classList.add('text-danger');
+        } else {
+            remainingContainer.classList.remove('text-danger');
+        }
+    }
+}
+
+
+function addItemToOrder() {
+    const menuItemSelect = document.getElementById('menu-item');
+    const selectedOption = menuItemSelect.options[menuItemSelect.selectedIndex];
+    const quantity = parseInt(document.getElementById('item-quantity').value);
+    const itemId = menuItemSelect.value;
+    
+    if (!itemId || !quantity || quantity < 1) {
+        alert('Please select an item and enter a valid quantity');
+        return;
+    }
+
+    // Log the request details for debugging
+    console.log('Sending request:', {
+        itemId,
+        quantity,
+        orderId
+    });
+
+    fetch(`/restaurant/order/${orderId}/add_item/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrf_token
+        },
+        body: JSON.stringify({
+            item_id: parseInt(itemId), // Ensure item_id is sent as a number
+            quantity: quantity
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.message || 'Failed to add item');
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.status === 'success') {
+            const tbody = document.querySelector('#order-items-table tbody');
+            const existingRow = document.getElementById(`item-row-${data.item_html.item_id}`);
+            
+            if (existingRow) {
+                existingRow.querySelector('input[type="number"]').value = data.item_html.quantity;
+                existingRow.querySelector('td:nth-child(4)').textContent = `Rs.${data.item_html.total}`;
+            } else {
+                const newRow = document.createElement('tr');
+                newRow.id = `item-row-${data.item_html.item_id}`;
+                newRow.className = 'bg-light';
+                newRow.innerHTML = `
+                    <td class="py-2 px-3 border-bottom">${data.item_html.name}</td>
+                    <td class="py-2 px-3 border-bottom">
+                        <input type="number" 
+                               value="${data.item_html.quantity}" 
+                               min="1" 
+                               class="w-20 px-2 py-1 border rounded"
+                               onchange="updateItemQuantity(${data.item_html.item_id}, this.value)">
+                    </td>
+                    <td class="py-2 px-3 border-bottom">Rs.${data.item_html.price}</td>
+                    <td class="py-2 px-3 border-bottom">Rs.${data.item_html.total}</td>
+                    <td class="py-2 px-3 border-bottom">
+                        <button onclick="removeOrderItem(${data.item_html.item_id})" 
+                                class="text-danger text-danger">
+                            Remove
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(newRow);
+            }
+            
+            updateDisplayTotals(data.new_total);
+            closeAddItemModal();
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert(error.message || 'Error adding item. Please try again.');
+    });
+}   
+
+
+function updateItemQuantity(itemId, newQuantity) {
+    if (newQuantity < 1) {
+        alert('Quantity must be at least 1');
+        return;
+    }
+
+    fetch(`/restaurant/order/${orderId}/add_item/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrf_token
+        },
+        body: JSON.stringify({
+            item_id: itemId,
+            quantity: newQuantity,
+            update: true
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            const row = document.getElementById(`item-row-${itemId}`);
+            row.querySelector('td:nth-child(4)').textContent = `Rs.${data.item_html.total}`;
+            updateDisplayTotals(data.new_total);
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error updating quantity');
+    });
+}
+
+function removeOrderItem(itemId) {
+    if (!confirm('Are you sure you want to remove this item?')) {
+        return;
+    }
+
+    fetch(`/restaurant/order/${orderId}/remove_item/${itemId}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrf_token
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            const row = document.getElementById(`item-row-${itemId}`);
+            row.remove();
+            updateDisplayTotals(data.new_total);
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error removing item');
+    });
+}
+
+// Initialize event listeners
+document.addEventListener('DOMContentLoaded', function() {
+    // Close modal when clicking outside
+    document.getElementById('add-item-modal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeAddItemModal();
+        }
+    });
+
+    // Initialize any existing amounts
+    updateRemainingAmount();
+    
+    // Also call after a brief delay to ensure all DOM elements are fully rendered
+    setTimeout(() => updateRemainingAmount(), 100);
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function openPrintPreview(type) {
+        const modal = document.getElementById('printPreviewModal');
+        const container = modal.querySelector('.preview-container');
+        const template = document.getElementById(`${type}Template`);
+        
+        document.getElementById('previewTitle').textContent = type === 'kot' ? 'KOT Preview' : 'Bill Preview';
+        container.innerHTML = template.innerHTML;
+        modal.classList.remove('d-none');
+    }
+
+    function closePreview() {
+        document.getElementById('printPreviewModal').classList.add('d-none');
+    }
+
+    function printDocument() {
+        window.print();
+    }
+
+    function downloadPDF() {
+        const content = document.querySelector('.preview-container').innerHTML;
+        const style = document.querySelector('style').innerHTML;
+        
+        const html = `
+            <html>
+                <head>
+                    <style>
+                        ${style}
+                        body {
+                            width: 80mm;
+                            margin: 0;
+                            padding: 0;
+                        }
+                    </style>
+                </head>
+                <body>
+                    ${content}
+                </body>
+            </html>
+        `;
+
+        const blob = new Blob([html], { type: 'application/pdf' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'order-document.pdf';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+    }
+
+    document.getElementById('printPreviewModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closePreview();
+        }
+    });
+
+
+
+
+
+
+
+
+
+    // Cancel modal handlers
+    function openCancelModal() {
+        const modal = document.getElementById('cancel-modal');
+        if (!modal) return;
+        modal.style.display = 'flex';
+        console.log('[Cancel Modal] Opened');
+    }
+    function closeCancelModal() {
+        const modal = document.getElementById('cancel-modal');
+        if (!modal) return;
+        modal.style.display = 'none';
+        console.log('[Cancel Modal] Closed');
+    }
+    // Close cancel modal when clicking outside
+    document.addEventListener('click', function (e) {
+        const modal = document.getElementById('cancel-modal');
+        if (!modal || modal.style.display === 'none') return;
+        // Only close if clicking on the modal backdrop, not the modal content
+        if (e.target === modal) closeCancelModal();
+    });
+</script>
+
+<style>
+    html, body {
+        height: auto !important;
+        overflow: auto !important;
+    }
+    
+    body {
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+    }
+    
+    main {
+        flex-grow: 1;
+        overflow: visible !important;
+    }
+    
+    .container-fluid {
+        height: auto !important;
+        overflow: visible !important;
+    }
+</style>
+
+{% endblock %}
+

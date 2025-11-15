@@ -1,0 +1,228 @@
+{% extends 'restaurant/base.html' %}
+
+{% block title %}Place Delivery Order{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-3 p-md-4">
+    <!-- Header -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3 mb-4">
+        <h1 class="mb-0">Place Delivery Order</h1>
+        <div class="badge bg-danger p-3">
+            <span class="d-block mb-1"><i class="fas fa-motorcycle me-2"></i>Delivery Order</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <form method="post" id="orderForm">
+                {% csrf_token %}
+                
+                <!-- Customer & Delivery Info -->
+                <div class="row g-3 mb-4">
+                    <div class="col-12 col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Customer Name</label>
+                            <input type="text" name="customer_name" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Phone Number</label>
+                            <input type="tel" name="customer_phone" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Delivery Address</label>
+                            <textarea class="form-control" name="delivery_address" rows="3" required></textarea>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div class="mb-0">
+                            <label class="form-label small fw-semibold">Special Notes</label>
+                            <textarea name="special_notes" class="form-control" rows="2"></textarea>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div class="mb-0">
+                            <label class="form-label small fw-semibold">Delivery Distance</label>
+                            <select id="delivery-distance" class="form-select" onchange="updateTotalWithDelivery()">
+                                <option value="100">Within 3 KM - Rs. 100</option>
+                                <option value="150">3-5 KM - Rs. 150</option>
+                                <option value="200">Above 5 KM - Rs. 200</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <hr class="my-4">
+
+                <!-- Order Items -->
+                <h5 class="mb-3">Order Items</h5>
+                {{ formset.management_form }}
+                
+                <div class="table-responsive mb-4">
+                    <table class="table table-sm">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Item</th>
+                                <th>Quantity</th>
+                                <th class="text-end">Price</th>
+                                <th class="text-end">Subtotal</th>
+                                <th class="text-center">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="order-items"></tbody>
+                        <tfoot>
+                            <tr class="border-top">
+                                <td colspan="3" class="text-end fw-bold">Subtotal:</td>
+                                <td class="text-end fw-bold" id="subtotal">Rs.0.00</td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <td colspan="3" class="text-end fw-bold">Delivery Charge:</td>
+                                <td class="text-end fw-bold" id="delivery-charge">Rs.100.00</td>
+                                <td></td>
+                            </tr>
+                            <tr class="border-top">
+                                <td colspan="3" class="text-end fw-bold">Total Amount:</td>
+                                <td class="text-end fw-bold" id="total-amount">Rs.0.00</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="d-flex flex-column flex-md-row gap-3 justify-content-between align-items-start align-items-md-center">
+                <button type="button" onclick="addOrderItem()" 
+                        class="btn btn-success">
+                    <i class="fas fa-plus me-2"></i>Add Item
+                </button>
+                
+                <div class="d-flex flex-column flex-sm-row gap-2">
+                    <a href="{% url 'restaurant:order_list' %}" 
+                       class="btn btn-secondary">
+                        Cancel
+                    </a>
+                    <button type="submit" 
+                            class="btn btn-primary">
+                        Place Order
+                    </button>
+                </div>
+            </div>
+
+            <input type="hidden" name="delivery_charge" id="delivery-charge-input" value="100">
+        </form>
+    </div>
+</div>
+
+<script>
+    let totalForms = 0;
+
+    function addOrderItem() {
+        const tbody = document.getElementById('order-items');
+        const tr = document.createElement('tr');
+        tr.className = 'order-item-row';
+        
+        tr.innerHTML = `
+            <td>
+                <select name="form-${totalForms}-item" class="form-select form-select-sm item-select" required>
+                    <option value="">Select an item</option>
+                    {% for menu_item in menu_items %}
+                        <option value="{{ menu_item.id }}" data-price="{{ menu_item.price }}">
+                            {{ menu_item.name }} - Rs.{{ menu_item.price }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </td>
+            <td>
+                <input type="number" 
+                       name="form-${totalForms}-quantity" 
+                       value="1" 
+                       min="1" 
+                       class="form-control form-control-sm quantity-input"
+                       required>
+            </td>
+            <td class="text-end item-price">Rs.0.00</td>
+            <td class="text-end item-subtotal">Rs.0.00</td>
+            <td class="text-center">
+                <button type="button" onclick="removeOrderItem(this)" 
+                        class="btn btn-sm btn-outline-danger">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        `;
+        
+        tbody.appendChild(tr);
+        totalForms++;
+        document.getElementById('id_form-TOTAL_FORMS').value = totalForms;
+        
+        const newSelect = tr.querySelector('.item-select');
+        const newQuantity = tr.querySelector('.quantity-input');
+        newSelect.addEventListener('change', () => updateRowPrices(tr));
+        newQuantity.addEventListener('input', () => updateRowPrices(tr));
+    }
+
+    function removeOrderItem(button) {
+        const row = button.closest('.order-item-row');
+        row.remove();
+        updateFormIndexes();
+        calculateTotal();
+    }
+
+    function updateFormIndexes() {
+        const rows = document.querySelectorAll('.order-item-row');
+        rows.forEach((row, index) => {
+            row.querySelector('.item-select').name = `form-${index}-item`;
+            row.querySelector('.quantity-input').name = `form-${index}-quantity`;
+        });
+        totalForms = rows.length;
+        document.getElementById('id_form-TOTAL_FORMS').value = totalForms;
+    }
+
+    function updateRowPrices(row) {
+        const select = row.querySelector('.item-select');
+        const quantityInput = row.querySelector('.quantity-input');
+        const priceCell = row.querySelector('.item-price');
+        const subtotalCell = row.querySelector('.item-subtotal');
+        
+        const selectedOption = select.selectedOptions[0];
+        const price = selectedOption ? parseFloat(selectedOption.dataset.price) : 0;
+        const quantity = parseInt(quantityInput.value) || 0;
+        
+        const subtotal = price * quantity;
+        
+        priceCell.textContent = `Rs.${price.toFixed(2)}`;
+        subtotalCell.textContent = `Rs.${subtotal.toFixed(2)}`;
+        
+        calculateTotal();
+    }
+
+    function calculateTotal() {
+        let subtotal = 0;
+        document.querySelectorAll('.item-subtotal').forEach(cell => {
+            subtotal += parseFloat(cell.textContent.replace('Rs.', '')) || 0;
+        });
+        
+        document.getElementById('subtotal').textContent = `Rs.${subtotal.toFixed(2)}`;
+        updateTotalWithDelivery();
+    }
+
+    function updateTotalWithDelivery() {
+        const subtotal = parseFloat(document.getElementById('subtotal').textContent.replace('Rs.', '')) || 0;
+        const deliveryCharge = parseInt(document.getElementById('delivery-distance').value);
+        const total = subtotal + deliveryCharge;
+        
+        document.getElementById('delivery-charge').textContent = `Rs.${deliveryCharge.toFixed(2)}`;
+        document.getElementById('delivery-charge-input').value = deliveryCharge;
+        document.getElementById('total-amount').textContent = `Rs.${total.toFixed(2)}`;
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        addOrderItem();
+        updateTotalWithDelivery();
+    });
+</script>
+{% endblock %}

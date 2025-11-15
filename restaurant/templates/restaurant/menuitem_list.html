@@ -1,0 +1,119 @@
+{% extends 'restaurant/base.html' %}
+
+{% block title %}Menu Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3 mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h2">Menu Management</h1>
+        <div class="gap-2 d-flex">
+            <a href="{% url 'restaurant:menuitem_create' %}" 
+               class="btn btn-success btn-sm">
+                <i class="fas fa-plus me-2"></i>
+                Add New Item
+            </a>
+            <a href="{% url 'restaurant:category_list' %}" 
+               class="btn btn-primary btn-sm">
+                <i class="fas fa-bars me-2"></i>
+                Categories
+            </a>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="text-secondary">Name</th>
+                        <th class="text-secondary">Category</th>
+                        <th class="text-secondary">Price</th>
+                        <th class="text-secondary">Status</th>
+                        <th class="text-secondary">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in menu_items %}
+                    <tr>
+                        <td>
+                            <div class="fw-medium">{{ item.name }}</div>
+                        </td>
+                        <td>
+                            <div class="text-muted">{{ item.category.name }}</div>
+                        </td>
+                        <td>
+                            <div>Rs.{{ item.price }}</div>
+                        </td>
+                        <td>
+                            {% if not item.category.is_active %}
+                                <span class="badge bg-warning text-dark">INACTIVE CATEGORY</span>
+                            {% else %}
+                                <span class="badge {% if item.is_available %}bg-success{% else %}bg-danger{% endif %}">
+                                    {{ item.is_available|yesno:"Available,Not Available" }}
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="text-sm">
+                                     <a href="{% url 'restaurant:menuitem_detail' pk=item.id %}" 
+                                         class="btn btn-link btn-sm text-primary">View</a>
+                                     <a href="{% url 'restaurant:menuitem_update' pk=item.id %}" 
+                                         class="btn btn-link btn-sm text-warning">Edit</a>
+                                     <button type="button" class="btn btn-link btn-sm text-danger delete-btn" data-url="{% url 'restaurant:menuitem_delete' pk=item.id %}">Delete</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+ 
+                <!-- Delete Confirmation Modal -->
+                <div id="deleteModal" class="modal fade" tabindex="-1" role="dialog">
+                    <div class="modal-dialog modal-dialog-centered" role="document">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Confirm Deletion</h5>
+                                <button type="button" class="btn-close" id="cancelDelete" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p>Are you sure you want to delete this item? This action cannot be undone.</p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" id="cancelDelete2">Cancel</button>
+                                <form id="deleteForm" method="post" action="" style="display: inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-danger">Delete</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <script>
+                    document.addEventListener('DOMContentLoaded', function () {
+                        const deleteButtons = document.querySelectorAll('.delete-btn');
+                        const modal = document.getElementById('deleteModal');
+                        const deleteForm = document.getElementById('deleteForm');
+                        const cancelBtns = document.querySelectorAll('#cancelDelete, #cancelDelete2');
+                        const bsModal = new bootstrap.Modal(modal);
+
+                        deleteButtons.forEach(btn => {
+                            btn.addEventListener('click', function (e) {
+                                const url = this.getAttribute('data-url');
+                                if (url) {
+                                    deleteForm.action = url;
+                                    bsModal.show();
+                                }
+                            });
+                        });
+
+                        cancelBtns.forEach(btn => {
+                            btn.addEventListener('click', function () {
+                                bsModal.hide();
+                                deleteForm.action = '';
+                            });
+                        });
+                    });
+                </script>
+{% endblock %}

@@ -1,0 +1,277 @@
+{% extends 'restaurant/base.html' %}
+
+{% block title %}Kitchen - Live Order Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-3 p-md-4">
+    <!-- Header with Controls -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3 mb-4">
+        <div>
+            <h1 class="mb-2">🍳 Kitchen Station</h1>
+            <p class="text-muted mb-0">Real-time order preparation tracking</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button onclick="location.reload()" class="btn btn-primary btn-sm d-flex align-items-center gap-2">
+                <i class="fas fa-sync"></i>
+                <span class="d-none d-sm-inline">Refresh</span>
+            </button>
+            <div class="badge bg-success d-flex align-items-center gap-2">
+                <span class="d-inline-block" style="width: 0.75rem; height: 0.75rem; background: #fff; border-radius: 50%; animation: pulse 2s infinite;"></span>
+                <span class="d-none d-sm-inline">Live</span>
+            </div>
+        </div>
+    </div>
+
+    {% if orders %}
+    <!-- Order Status Summary -->
+    <div class="stats-grid mb-4">
+        <div class="card">
+            <div class="card-body">
+                <p class="text-muted small mb-2">Total Orders</p>
+                <h3 class="mb-0" id="totalOrders">{{ orders|length }}</h3>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-body">
+                <p class="text-muted small mb-2">Pending</p>
+                <h3 class="mb-0" id="pendingCount">0</h3>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-body">
+                <p class="text-muted small mb-2">Cooking</p>
+                <h3 class="mb-0" id="cookingCount">0</h3>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-body">
+                <p class="text-muted small mb-2">Ready</p>
+                <h3 class="mb-0" id="readyCount">0</h3>
+            </div>
+        </div>
+    </div>
+
+    <!-- Kitchen Board - Kanban Style -->
+    <div class="kitchen-board">
+        <!-- Pending Column -->
+        <div class="kitchen-column border-warning">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0 d-flex align-items-center gap-2">
+                    <span class="d-inline-block" style="width: 0.75rem; height: 0.75rem; background: #ffc107; border-radius: 50%;"></span>
+                    Pending
+                </h5>
+                <span class="badge bg-warning text-dark" id="pendingBadge">0</span>
+            </div>
+            <div id="pending-column" class="d-flex flex-column gap-2"></div>
+        </div>
+
+        <!-- Cooking Column -->
+        <div class="kitchen-column border-danger">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0 d-flex align-items-center gap-2">
+                    <span class="d-inline-block animate-pulse" style="width: 0.75rem; height: 0.75rem; background: #dc3545; border-radius: 50%;"></span>
+                    Cooking
+                </h5>
+                <span class="badge bg-danger" id="cookingBadge">0</span>
+            </div>
+            <div id="cooking-column" class="d-flex flex-column gap-2"></div>
+        </div>
+
+        <!-- Ready Column -->
+        <div class="kitchen-column border-success">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0 d-flex align-items-center gap-2">
+                    <span class="d-inline-block" style="width: 0.75rem; height: 0.75rem; background: #198754; border-radius: 50%;"></span>
+                    Ready for Pickup
+                </h5>
+                <span class="badge bg-success" id="readyBadge">0</span>
+            </div>
+            <div id="ready-column" class="d-flex flex-column gap-2"></div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize kitchen board
+        function initializeKitchenBoard() {
+            const pendingColumn = document.getElementById('pending-column');
+            const cookingColumn = document.getElementById('cooking-column');
+            const readyColumn = document.getElementById('ready-column');
+
+            pendingColumn.innerHTML = '';
+            cookingColumn.innerHTML = '';
+            readyColumn.innerHTML = '';
+
+            let pendingCount = 0, cookingCount = 0, readyCount = 0;
+
+            let orders = [];
+            // if ordersData passed (from AJAX), use it; otherwise, use server-rendered list
+            if (typeof ordersData !== 'undefined' && Array.isArray(ordersData)) {
+                orders = ordersData;
+            } else {
+                orders = [
+                    {% for order in orders %}
+                    {
+                        id: {{ order.id }},
+                        order_id: '{{ order.order_id }}',
+                        type: '{% if order.table %}table #{{ order.table.number }}{% elif order.order_type == 'takeaway' %}Takeaway{% else %}Delivery{% endif %}',
+                        amount: '{{ order.total_amount }}',
+                        status: '{{ order.status }}',
+                        items: {{ order.items.count }}
+                    }{% if not forloop.last %},{% endif %}
+                    {% endfor %}
+                ];
+            }
+
+            orders.forEach(order => {
+                // Normalize status from server to be safe (trim + lower)
+                const status = (order.status || '').toString().trim().toLowerCase();
+                const card = createOrderCard(order);
+
+                if (status === 'pending') {
+                    pendingColumn.appendChild(card);
+                    pendingCount++;
+                } else if (status === 'cooking' || status === 'preparing' || status === 'confirmed') {
+                    // Treat 'preparing' and 'confirmed' as the cooking state in the kitchen board
+                    cookingColumn.appendChild(card);
+                    cookingCount++;
+                } else if (status === 'completed' || status === 'ready' || status === 'ready_to_pickup') {
+                    readyColumn.appendChild(card);
+                    readyCount++;
+                } else {
+                    // Fallback: place unknown statuses in pending column for visibility
+                    pendingColumn.appendChild(card);
+                    pendingCount++;
+                }
+            });
+
+            // Update badges
+            document.getElementById('pendingBadge').textContent = pendingCount;
+            document.getElementById('cookingBadge').textContent = cookingCount;
+            document.getElementById('readyBadge').textContent = readyCount;
+            document.getElementById('pendingCount').textContent = pendingCount;
+            document.getElementById('cookingCount').textContent = cookingCount;
+            document.getElementById('readyCount').textContent = readyCount;
+        }
+
+        function createOrderCard(order) {
+            const card = document.createElement('div');
+            card.className = 'card draggable hover-lift';
+            card.draggable = true;
+            card.setAttribute('role', 'article');
+            card.setAttribute('aria-label', `Order ${order.order_id} - ${order.type}`);
+            card.dataset.orderId = order.id;
+            card.style.cursor = 'move';
+
+            const normalized = (order.status || '').toString().trim().toLowerCase();
+            const statusColor = {
+                'pending': '#FFB74D',
+                'cooking': '#FF9800',
+                'preparing': '#FF9800',
+                'confirmed': '#FF9800',
+                'completed': '#81C784',
+                'ready': '#81C784'
+            }[normalized] || '#CCCCCC';
+
+            card.innerHTML = `
+                <div class="card-header" style="background: linear-gradient(135deg, #FAFAFA 0%, #F5F5F5 100%); border: none; padding-bottom: 0.75rem; margin-bottom: 0.75rem;">
+                    <div class="d-flex" style="justify-content: space-between; align-items: flex-start;">
+                        <div>
+                            <p style="font-family: 'Courier New', monospace; font-weight: bold; font-size: 1.125rem; color: ${statusColor}; margin: 0;">#${order.order_id}</p>
+                            <p class="text-muted" style="font-size: 0.75rem; margin-top: 0.25rem;">${order.type}</p>
+                        </div>
+                        <span style="font-size: 1.75rem; font-weight: bold; color: ${statusColor};">${order.items}</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex" style="justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                        <span style="font-size: 0.875rem; font-weight: 500; color: #666666;">Order Total:</span>
+                        <span style="font-weight: bold; font-size: 1.125rem; color: #000000;">Rs.${order.amount}</span>
+                    </div>
+                    <div class="text-muted" style="font-size: 0.75rem; margin-bottom: 0.75rem;">
+                        <p style="margin: 0;">Items: <strong>${order.items}</strong></p>
+                    </div>
+                    <a href="/restaurant/order_details/${order.order_id}/"
+                       class="btn btn-primary" style="font-size: 0.875rem; padding: 0.5rem 1rem; width: 100%; text-align: center; text-decoration: none; display: d-block;" aria-label="View details for order ${order.order_id}">View Details</a>
+                </div>
+            `;
+
+            return card;
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', initializeKitchenBoard);
+
+        // Auto-refresh every 5 seconds: fetch latest orders and re-render board
+        function refreshKitchenBoard() {
+            fetch('/restaurant/kitchen/orders/api/')
+                .then(resp => {
+                    if (!resp.ok) throw new Error('Network response was not ok');
+                    return resp.json();
+                })
+                .then(data => {
+                    if (data && Array.isArray(data.orders)) {
+                        initializeKitchenBoard(data.orders);
+                    }
+                })
+                .catch(err => {
+                    console.error('Failed to refresh kitchen board:', err);
+                });
+        }
+
+        // Auto-refresh every 5 seconds
+        setInterval(refreshKitchenBoard, 5000);
+    </script>
+
+    {% else %}
+    <!-- Empty State -->
+    <div class="card" style="text-align: center; padding: 3rem 1rem;">
+        <svg class="mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 4rem; height: 4rem; color: #CCCCCC;">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+        </svg>
+        <h2 style="font-size: 1.5rem; font-weight: bold; color: #000000; margin-bottom: 0.5rem;">No Active Orders</h2>
+        <p class="text-muted" style="margin-bottom: 1.5rem;">All orders have been completed! Great job! 🎉</p>
+        <button onclick="location.reload()" class="btn btn-primary" style="display: d-inline-flex; align-items: center; gap: 0.5rem;">
+            <svg style="width: 1.25rem; height: 1.25rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            Check for New Orders
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+
+    @media (max-width: 768px) {
+        div[style*="min-height: 400px"] {
+            min-height: 300px !important;
+        }
+    }
+
+    .draggable {
+        opacity: 1;
+        : opacity 0.3s ease;
+    }
+
+    .draggable.dragging {
+        opacity: 0.5;
+    }
+
+    .drop-zone {
+        min-height: 100px;
+        background: rgba(0, 0, 0, 0.05);
+        border: 2px dashed rgba(0, 0, 0, 0.3);
+        border-radius: 0.375rem;
+        : all 0.3s ease;
+    }
+
+    .drop-zone.drag-over {
+        background: rgba(0, 0, 0, 0.1);
+        border-color: rgba(0, 0, 0, 0.6);
+    }
+</style>
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends 'restaurant/base.html' %}
+
+{% block title %}Menu{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-3 p-md-4">
+    <h1 class="mb-4 fw-bold">Menu</h1>
+    
+    {% if categories %}
+        {% for category in categories %}
+            <div class="mb-5">
+                <h2 class="h4 fw-bold mb-3 text-primary border-bottom pb-2">
+                    {{ category.name }}
+                </h2>
+                
+                {% with items=category.menuitem_set.filter is_available=True %}
+                    {% if items %}
+                        <div class="menu-grid">
+                            {% for item in items %}
+                                <div class="card">
+                                    {% if item.image %}
+                                        <img src="{{ item.image.url }}" alt="{{ item.name }}" class="card-img-top" style="height: 200px; object-fit: cover;">
+                                    {% endif %}
+                                    <div class="card-body">
+                                        <h3 class="h5 fw-bold mb-2">{{ item.name }}</h3>
+                                        {% if item.description %}
+                                            <p class="text-muted small mb-3">{{ item.description }}</p>
+                                        {% endif %}
+                                        <p class="h5 fw-bold text-success">Rs.{{ item.price }}</p>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted fst-italic">No available items in this category</p>
+                    {% endif %}
+                {% endwith %}
+            </div>
+        {% endfor %}
+    {% else %}
+        <p class="text-muted text-center py-5">No active menu categories available</p>
+    {% endif %}
+</div>
+{% endblock %}

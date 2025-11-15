@@ -1,0 +1,244 @@
+{% extends 'restaurant/base.html' %}
+
+{% block title %}Place Order - Table {{ table.number }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-3 p-md-4">
+    <!-- Header -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3 mb-4">
+        <h1 class="mb-0">Place Order</h1>
+        <div class="badge bg-primary p-3">
+            <span class="d-block mb-1"><i class="fas fa-chair me-2"></i>Table #{{ table.number }}</span>
+            <span class="small">Capacity: {{ table.capacity }} seats</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <form method="post" id="orderForm">
+                {% csrf_token %}
+                
+                <!-- Customer Info -->
+                <div class="row g-3 mb-4">
+                    <div class="col-12 col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Customer Name</label>
+                            <input type="text" name="customer_name" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Phone Number</label>
+                            <input type="tel" name="customer_phone" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="mb-0">
+                            <label class="form-label small fw-semibold">Special Notes</label>
+                            <textarea name="special_notes" class="form-control" rows="3"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <hr class="my-4">
+
+                <!-- Order Items -->
+                <h5 class="mb-3">Order Items</h5>
+                {{ formset.management_form }}
+                
+                <div class="table-responsive mb-4">
+                    <table class="table table-sm">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Item</th>
+                                <th style="width: 120px;">Quantity</th>
+                                <th class="text-end" style="width: 100px;">Price</th>
+                                <th class="text-end" style="width: 120px;">Subtotal</th>
+                                <th style="width: 50px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="order-items">
+                            {% for form in formset %}
+                            <tr class="order-item-row">
+                                <td>
+                                    <select name="form-{{ forloop.counter0 }}-item" 
+                                            class="form-select form-select-sm item-select" 
+                                            required>
+                                        <option value="">Select an item</option>
+                                        {% for menu_item in menu_items %}
+                                            <option value="{{ menu_item.id }}" 
+                                                    data-price="{{ menu_item.price }}"
+                                                    {% if not menu_item.category.is_active %}disabled{% endif %}>
+                                                {{ menu_item.name }} - Rs.{{ menu_item.price }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                                <td>
+                                    <input type="number" 
+                                           name="form-{{ forloop.counter0 }}-quantity" 
+                                           value="1" 
+                                           min="1" 
+                                           class="form-control form-control-sm quantity-input" 
+                                           required>
+                                </td>
+                                <td class="text-end item-price">Rs.0.00</td>
+                                <td class="text-end item-subtotal">Rs.0.00</td>
+                                <td class="text-center">
+                                    <button type="button" 
+                                            onclick="removeOrderItem(this)" 
+                                            class="btn btn-sm btn-outline-danger"
+                                            title="Remove">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr class="fw-bold border-top">
+                                <td colspan="3" class="text-end">Total Amount:</td>
+                                <td class="text-end" id="total-amount">Rs.0.00</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-end gap-3">
+                    <button type="button" 
+                            onclick="addOrderItem()" 
+                            class="btn btn-success">
+                        <i class="fas fa-plus me-2"></i>Add Item
+                    </button>
+                    
+                    <div class="d-flex gap-2 w-100 flex-wrap">
+                        <a href="{% url 'restaurant:table_list' %}" 
+                           class="btn btn-secondary flex-grow-1 flex-md-grow-0">
+                            Cancel
+                        </a>
+                        <button type="submit" 
+                                class="btn btn-primary flex-grow-1 flex-md-grow-0">
+                            Place Order
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    let totalForms = parseInt(document.getElementById('id_form-TOTAL_FORMS').value);
+
+    function addOrderItem() {
+        const tbody = document.getElementById('order-items');
+        const tr = document.createElement('tr');
+        tr.className = 'order-item-row';
+        
+        tr.innerHTML = `
+            <td>
+                <select name="form-${totalForms}-item" class="form-select form-select-sm item-select" required>
+                    <option value="">Select an item</option>
+                    {% for menu_item in menu_items %}
+                        <option value="{{ menu_item.id }}" data-price="{{ menu_item.price }}">
+                            {{ menu_item.name }} - Rs.{{ menu_item.price }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </td>
+            <td>
+                <input type="number" 
+                       name="form-${totalForms}-quantity" 
+                       value="1" 
+                       min="1" 
+                       class="form-control form-control-sm quantity-input"
+                       required>
+            </td>
+            <td class="text-end item-price">Rs.0.00</td>
+            <td class="text-end item-subtotal">Rs.0.00</td>
+            <td class="text-center">
+                <button type="button" 
+                        onclick="removeOrderItem(this)" 
+                        class="btn btn-sm btn-outline-danger">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        `;
+        
+        tbody.appendChild(tr);
+        totalForms += 1;
+        document.getElementById('id_form-TOTAL_FORMS').value = totalForms;
+        
+        // Setup event listeners for the new row
+        const newSelect = tr.querySelector('.item-select');
+        const newQuantity = tr.querySelector('.quantity-input');
+        newSelect.addEventListener('change', () => updateRowPrices(tr));
+        newQuantity.addEventListener('input', () => updateRowPrices(tr));
+    }
+
+    function removeOrderItem(button) {
+        const row = button.closest('.order-item-row');
+        row.remove();
+        updateFormIndexes();
+        calculateTotal();
+    }
+
+    function updateFormIndexes() {
+        const rows = document.querySelectorAll('.order-item-row');
+        rows.forEach((row, index) => {
+            row.querySelector('.item-select').name = `form-${index}-item`;
+            row.querySelector('.quantity-input').name = `form-${index}-quantity`;
+        });
+        totalForms = rows.length;
+        document.getElementById('id_form-TOTAL_FORMS').value = totalForms;
+    }
+
+    function updateRowPrices(row) {
+        const select = row.querySelector('.item-select');
+        const quantityInput = row.querySelector('.quantity-input');
+        const priceCell = row.querySelector('.item-price');
+        const subtotalCell = row.querySelector('.item-subtotal');
+        
+        const selectedOption = select.selectedOptions[0];
+        const price = selectedOption ? parseFloat(selectedOption.dataset.price) : 0;
+        const quantity = parseInt(quantityInput.value) || 0;
+        
+        const subtotal = price * quantity;
+        
+        priceCell.textContent = `Rs.${price.toFixed(2)}`;
+        subtotalCell.textContent = `Rs.${subtotal.toFixed(2)}`;
+        
+        calculateTotal();
+    }
+
+    function calculateTotal() {
+        let total = 0;
+        document.querySelectorAll('.item-subtotal').forEach(cell => {
+            const subtotal = parseFloat(cell.textContent.replace('Rs.', '')) || 0;
+            total += subtotal;
+        });
+        document.getElementById('total-amount').textContent = `Rs.${total.toFixed(2)}`;
+    }
+
+    // Initialize event listeners for existing rows
+    document.addEventListener('DOMContentLoaded', () => {
+        const rows = document.querySelectorAll('.order-item-row');
+        rows.forEach(row => {
+            const select = row.querySelector('.item-select');
+            const quantity = row.querySelector('.quantity-input');
+            select.addEventListener('change', () => updateRowPrices(row));
+            quantity.addEventListener('input', () => updateRowPrices(row));
+        });
+        
+        // Add initial row if none exists
+        if (rows.length === 0) {
+            addOrderItem();
+        }
+        
+        // Calculate initial totals
+        rows.forEach(row => updateRowPrices(row));
+    });
+</script>
+{% endblock %}

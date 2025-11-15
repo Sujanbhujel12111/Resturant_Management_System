@@ -1,0 +1,151 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#000000">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Restaurant System">
+    <meta name="description" content="Restaurant Management System - Fully Responsive Order Management">
+    <meta name="format-detection" content="telephone=no">
+    <title>{% block title %}Restaurant Management System{% endblock %}</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Removed custom responsive CSS: now using Bootstrap only. -->
+    <!-- If you need custom overrides, add them to `static/css/backup/` or create a new minimal override file. -->
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="d-flex flex-column min-vh-100 bg-light">
+    <!-- Mobile Menu Button -->
+    <div class="d-lg-none position-fixed top-0 end-0 p-3" style="z-index: 1000;">
+        <button onclick="toggleMobileMenu()" class="btn btn-primary rounded-circle p-2">
+            <i class="fas fa-bars"></i>
+        </button>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white sticky-top border-bottom">
+        <div class="container-fluid px-3">
+            <a href="{% url 'home:profile' %}" class="navbar-brand d-flex align-items-center gap-2">
+                <i class="fas fa-utensils text-primary" style="font-size: 1.5rem;"></i>
+                <span class="fw-bold d-none d-sm-inline">Restaurant</span>
+            </a>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <!-- Desktop Navigation -->
+                <div class="navbar-nav ms-auto">
+                    <a href="{% url 'home:dashboard' %}" class="nav-link px-3 py-2">Dashboard</a>
+                    <a href="{% url 'restaurant:order_list' %}" class="nav-link px-3 py-2">Orders</a>
+                    <a href="{% url 'restaurant:menuitem_list' %}" class="nav-link px-3 py-2">Menu</a>
+                    <a href="{% url 'restaurant:kitchen' %}" class="nav-link px-3 py-2">Kitchen</a>
+                    <a href="{% url 'restaurant:transaction_history' %}" class="nav-link px-3 py-2">History</a>
+                    <a href="{% url 'restaurant:table_list' %}" class="nav-link px-3 py-2">Tables</a>
+                    <a href="{% url 'restaurant:place_order_takeaway' %}" class="nav-link px-3 py-2">Take Away</a>
+                    <a href="{% url 'restaurant:place_order_delivery' %}" class="nav-link px-3 py-2">Delivery</a>
+                </div>
+
+                <!-- Profile Dropdown -->
+                <div class="dropdown ms-lg-3">
+                    <button id="profileBtn" class="btn btn-light border-0 d-flex align-items-center gap-2 dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                        <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center fw-bold" style="width: 40px; height: 40px;">
+                            {{ user.username|upper|first }}
+                        </div>
+                        <span class="d-none d-lg-inline">{{ user.username }}</span>
+                    </button>
+
+                    <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                        <li><a class="dropdown-item" href="{% url 'home:profile' %}"><i class="fas fa-user me-2"></i>View Profile</a></li>
+                        <li><a class="dropdown-item" href="#"><i class="fas fa-cog me-2"></i>Settings</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        {% if user.is_authenticated %}
+                            <li>
+                                <form method="post" action="{% url 'home:logout' %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="dropdown-item"><i class="fas fa-sign-out-alt me-2"></i>Logout</button>
+                                </form>
+                            </li>
+                        {% else %}
+                            <li><a class="dropdown-item" href="{% url 'home:login' %}"><i class="fas fa-sign-in-alt me-2"></i>Login</a></li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow-1 py-3">
+        <div class="container-fluid px-3">
+            {% if messages %}
+                <div class="mb-3">
+                    {% for message in messages %}
+                        <div class="alert {% if message.tags == 'error' %}alert-danger{% elif message.tags == 'warning' %}alert-warning{% else %}alert-success{% endif %} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white shadow-sm mt-auto border-top">
+        <div class="container-fluid px-3 py-3">
+            <p class="text-center text-muted mb-0">&copy; {{ current_year }} Restaurant Management System | Built for Excellence</p>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function toggleMobileMenu() {
+            const navbarCollapse = document.querySelector('.navbar-collapse');
+            if (navbarCollapse.classList.contains('show')) {
+                navbarCollapse.classList.remove('show');
+            } else {
+                navbarCollapse.classList.add('show');
+            }
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(event) {
+            const dropdown = document.querySelector('.dropdown-menu');
+            const profileButton = document.getElementById('profileBtn');
+            
+            if (dropdown && dropdown.classList.contains('show') && 
+                !dropdown.contains(event.target) && !profileButton.contains(event.target)) {
+                dropdown.classList.remove('show');
+            }
+        });
+
+        // Escape key handler
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                const dropdown = document.querySelector('.dropdown-menu');
+                if (dropdown) {
+                    dropdown.classList.remove('show');
+                }
+            }
+        });
+    </script>
+
+    <!-- Bootstrap JS Bundle (required for navbar collapse, dropdowns, modals, etc.) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Interactive Features Script -->
+    <script src="{% static 'js/interactive.js' %}"></script>
+    <script src="{% static 'js/responsive.js' %}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
