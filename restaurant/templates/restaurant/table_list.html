@@ -3,76 +3,144 @@
 {% block title %}Table List - Restaurant Management System{% endblock %}
 
 {% block content %}
-<div class="container-fluid p-3 p-md-4">
+<div class="container-fluid p-3 p-md-4" style="background: linear-gradient(135deg, #e0f7fa 0%, #b2ebf2 50%, #80deea 100%); min-height: 100vh;">
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3 mb-4">
         <h1 class="mb-0">Table Management</h1>
         <a href="{% url 'restaurant:table_create' %}" class="btn btn-primary btn-sm">
             <i class="fas fa-plus me-2"></i>Add Table
         </a>
     </div>
-
-    <div class="card">
-        <div class="table-responsive">
-            <table class="table table-hover mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>Table Number</th>
-                        <th>Capacity</th>
-                        <th class="d-none d-md-table-cell">Occupied</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for table in tables %}
-                    <tr>
-                        <td class="fw-bold">
-                            <i class="fas fa-chair me-2 text-primary"></i>
-                            Table {{ table.number }}
-                        </td>
-                        <td>
-                            <span class="badge bg-info">{{ table.capacity }} seats</span>
-                        </td>
-                        <td class="d-none d-md-table-cell">
-                            {% if table.is_occupied %}
-                                <span class="badge bg-danger">Occupied</span>
-                            {% else %}
-                                <span class="badge bg-success">Available</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <div class="btn-group btn-group-sm" role="group">
-                                <a href="{% url 'restaurant:place_order' table_id=table.id %}" 
-                                   class="btn btn-outline-primary" 
-                                   title="Place Order">
-                                    <i class="fas fa-shopping-cart"></i>
-                                    <span class="d-none d-lg-inline ms-1">Order</span>
-                                </a>
-                                <a href="{% url 'restaurant:table_update' pk=table.id %}" 
-                                   class="btn btn-outline-warning" 
-                                   title="Edit">
-                                    <i class="fas fa-edit"></i>
-                                    <span class="d-none d-lg-inline ms-1">Edit</span>
-                                </a>
-                                <a href="{% url 'restaurant:table_delete' pk=table.id %}" 
-                                   class="btn btn-outline-danger" 
-                                   title="Delete">
-                                    <i class="fas fa-trash"></i>
-                                    <span class="d-none d-lg-inline ms-1">Delete</span>
-                                </a>
-                            </div>
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="4" class="text-center py-5 text-muted">
-                            <p class="mb-3">No tables found</p>
-                            <a href="{% url 'restaurant:table_create' %}" class="btn btn-primary btn-sm">Add First Table</a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+    <style>
+        .table-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .table-card {
+            background: #ffffffcc;
+            border-radius: 16px;
+            box-shadow: 0 2px 12px rgba(0,188,212,0.10);
+            padding: 1.5rem 1.2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            position: relative;
+            min-height: 180px;
+            transition: box-shadow 0.2s, border 0.2s;
+            border: 2px solid #b2ebf2;
+        }
+        .table-card:hover {
+            box-shadow: 0 4px 18px rgba(0,188,212,0.18);
+            border-color: #00bcd4;
+        }
+        .table-card .table-icon {
+            font-size: 2.2rem;
+            color: #00bcd4;
+            margin-bottom: 0.5rem;
+        }
+        .table-card .table-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin-bottom: 0.3rem;
+            color: #0097a7;
+        }
+        .table-card .table-capacity {
+            font-size: 1rem;
+            margin-bottom: 0.7rem;
+        }
+        .table-card .table-status {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .table-card .table-status.occupied {
+            color: #dc3545;
+        }
+        .table-card .table-status.available {
+            color: #009688;
+        }
+        .table-card .table-actions {
+            margin-top: auto;
+            display: flex;
+            gap: 0.5rem;
+            width: 100%;
+        }
+        .table-card .btn-outline-primary {
+            border: 2px solid #00bcd4;
+            color: #00bcd4;
+            background: #fff;
+        }
+        .table-card .btn-outline-primary:hover {
+            background: #e0f7fa;
+            color: #0097a7;
+            border-color: #0097a7;
+        }
+        .table-card .btn-outline-warning {
+            border: 2px solid #ffb300;
+            color: #ffb300;
+            background: #fff;
+        }
+        .table-card .btn-outline-warning:hover {
+            background: #fffde7;
+            color: #ff6f00;
+            border-color: #ff6f00;
+        }
+        .table-card .btn-outline-danger {
+            border: 2px solid #e57373;
+            color: #e57373;
+            background: #fff;
+        }
+        .table-card .btn-outline-danger:hover {
+            background: #ffebee;
+            color: #c62828;
+            border-color: #c62828;
+        }
+        @media (max-width: 600px) {
+            .table-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+    <div class="table-grid">
+        {% for table in tables %}
+        <div class="table-card">
+            <span class="table-icon"><i class="fas fa-chair"></i></span>
+            <div class="table-title">Table {{ table.number }}</div>
+            <div class="table-capacity"><span class="badge bg-info">{{ table.capacity }} seats</span></div>
+            <div class="table-status {% if table.is_occupied %}occupied{% else %}available{% endif %}">
+                {% if table.is_occupied %}
+                    <i class="fas fa-times-circle"></i> Occupied
+                {% else %}
+                    <i class="fas fa-check-circle"></i> Available
+                {% endif %}
+            </div>
+            <div class="table-actions">
+                <a href="{% url 'restaurant:place_order' table_id=table.id %}" class="btn btn-outline-primary btn-sm flex-fill" title="Place Order">
+                    <i class="fas fa-shopping-cart"></i> Order
+                </a>
+                <a href="{% url 'restaurant:table_update' pk=table.id %}" class="btn btn-outline-warning btn-sm flex-fill" title="Edit">
+                    <i class="fas fa-edit"></i> Edit
+                </a>
+                <a href="{% url 'restaurant:table_delete' pk=table.id %}" class="btn btn-outline-danger btn-sm flex-fill" title="Delete">
+                    <i class="fas fa-trash"></i> Delete
+                </a>
+            </div>
+            {% if table.is_occupied %}
+                <div class="mt-2 text-danger small"><i class="fas fa-exclamation-circle"></i> Pending Order</div>
+            {% else %}
+                <div class="mt-2 text-success small"><i class="fas fa-check"></i> Ready</div>
+            {% endif %}
         </div>
+        {% empty %}
+        <div class="table-card text-center text-muted">
+            <p class="mb-3">No tables found</p>
+            <a href="{% url 'restaurant:table_create' %}" class="btn btn-primary btn-sm">Add First Table</a>
+        </div>
+        {% endfor %}
     </div>
 </div>
 {% endblock %}

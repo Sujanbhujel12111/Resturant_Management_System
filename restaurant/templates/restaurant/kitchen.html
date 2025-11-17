@@ -3,20 +3,20 @@
 {% block title %}Kitchen - Live Order Management{% endblock %}
 
 {% block content %}
-<div class="container-fluid p-3 p-md-4">
+<div class="container-fluid p-3 p-md-4" style="background: linear-gradient(135deg, #e0f7fa 0%, #b2ebf2 50%, #80deea 100%); min-height: 100vh;">
     <!-- Header with Controls -->
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3 mb-4">
-        <div>
+    <div class="kitchen-header mb-4">
+        <div class="kitchen-header-main">
             <h1 class="mb-2">🍳 Kitchen Station</h1>
             <p class="text-muted mb-0">Real-time order preparation tracking</p>
         </div>
-        <div class="d-flex gap-2">
+        <div class="kitchen-header-controls">
             <button onclick="location.reload()" class="btn btn-primary btn-sm d-flex align-items-center gap-2">
                 <i class="fas fa-sync"></i>
                 <span class="d-none d-sm-inline">Refresh</span>
             </button>
-            <div class="badge bg-success d-flex align-items-center gap-2">
-                <span class="d-inline-block" style="width: 0.75rem; height: 0.75rem; background: #fff; border-radius: 50%; animation: pulse 2s infinite;"></span>
+            <div class="badge bg-success d-flex align-items-center gap-2 live-badge">
+                <span class="pulse-dot"></span>
                 <span class="d-none d-sm-inline">Live</span>
             </div>
         </div>
@@ -25,74 +25,66 @@
     {% if orders %}
     <!-- Order Status Summary -->
     <div class="stats-grid mb-4">
-        <div class="card">
-            <div class="card-body">
-                <p class="text-muted small mb-2">Total Orders</p>
-                <h3 class="mb-0" id="totalOrders">{{ orders|length }}</h3>
-            </div>
+        <div class="stat-card">
+            <div class="stat-label">Total Orders</div>
+            <div class="stat-value" id="totalOrders">{{ orders|length }}</div>
         </div>
-        <div class="card">
-            <div class="card-body">
-                <p class="text-muted small mb-2">Pending</p>
-                <h3 class="mb-0" id="pendingCount">0</h3>
-            </div>
+        <div class="stat-card">
+            <div class="stat-label">Pending</div>
+            <div class="stat-value" id="pendingCount">0</div>
         </div>
-        <div class="card">
-            <div class="card-body">
-                <p class="text-muted small mb-2">Cooking</p>
-                <h3 class="mb-0" id="cookingCount">0</h3>
-            </div>
+        <div class="stat-card">
+            <div class="stat-label">Cooking</div>
+            <div class="stat-value" id="cookingCount">0</div>
         </div>
-        <div class="card">
-            <div class="card-body">
-                <p class="text-muted small mb-2">Ready</p>
-                <h3 class="mb-0" id="readyCount">0</h3>
-            </div>
+        <div class="stat-card">
+            <div class="stat-label">Ready</div>
+            <div class="stat-value" id="readyCount">0</div>
         </div>
     </div>
 
-    <!-- Kitchen Board - Kanban Style -->
-    <div class="kitchen-board">
-        <!-- Pending Column -->
-        <div class="kitchen-column border-warning">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="mb-0 d-flex align-items-center gap-2">
-                    <span class="d-inline-block" style="width: 0.75rem; height: 0.75rem; background: #ffc107; border-radius: 50%;"></span>
-                    Pending
-                </h5>
+    <!-- Kitchen Board - Responsive Kanban -->
+    <div class="kitchen-board-grid">
+        <div class="kitchen-column">
+            <div class="kitchen-column-header pending">
+                <span class="status-dot pending"></span> Pending
                 <span class="badge bg-warning text-dark" id="pendingBadge">0</span>
             </div>
-            <div id="pending-column" class="d-flex flex-column gap-2"></div>
+            <div id="pending-column" class="kitchen-column-list"></div>
         </div>
-
-        <!-- Cooking Column -->
-        <div class="kitchen-column border-danger">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="mb-0 d-flex align-items-center gap-2">
-                    <span class="d-inline-block animate-pulse" style="width: 0.75rem; height: 0.75rem; background: #dc3545; border-radius: 50%;"></span>
-                    Cooking
-                </h5>
+        <div class="kitchen-column">
+            <div class="kitchen-column-header cooking">
+                <span class="status-dot cooking"></span> Cooking
                 <span class="badge bg-danger" id="cookingBadge">0</span>
             </div>
-            <div id="cooking-column" class="d-flex flex-column gap-2"></div>
+            <div id="cooking-column" class="kitchen-column-list"></div>
         </div>
-
-        <!-- Ready Column -->
-        <div class="kitchen-column border-success">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="mb-0 d-flex align-items-center gap-2">
-                    <span class="d-inline-block" style="width: 0.75rem; height: 0.75rem; background: #198754; border-radius: 50%;"></span>
-                    Ready for Pickup
-                </h5>
+        <div class="kitchen-column">
+            <div class="kitchen-column-header ready">
+                <span class="status-dot ready"></span> Ready
                 <span class="badge bg-success" id="readyBadge">0</span>
             </div>
-            <div id="ready-column" class="d-flex flex-column gap-2"></div>
+            <div id="ready-column" class="kitchen-column-list"></div>
         </div>
     </div>
 
+    <script type="application/json" id="orders-json">
+    [
+        {% for order in orders %}
+        {
+            "id": "{{ order.id }}",
+            "order_id": "{{ order.order_id }}",
+            "type": "{% if order.table %}Table #{{ order.table.number }}{% elif order.order_type == 'takeaway' %}Takeaway{% else %}Delivery{% endif %}",
+            "amount": "{{ order.total_amount }}",
+            "status": "{{ order.status }}",
+            "items": "{{ order.items.count }}"
+        }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ]
+    </script>
     <script>
         // Initialize kitchen board
-        function initializeKitchenBoard() {
+        function initializeKitchenBoard(ordersDataArg) {
             const pendingColumn = document.getElementById('pending-column');
             const cookingColumn = document.getElementById('cooking-column');
             const readyColumn = document.getElementById('ready-column');
@@ -105,21 +97,15 @@
 
             let orders = [];
             // if ordersData passed (from AJAX), use it; otherwise, use server-rendered list
-            if (typeof ordersData !== 'undefined' && Array.isArray(ordersData)) {
+            if (ordersDataArg && Array.isArray(ordersDataArg)) {
+                orders = ordersDataArg;
+            } else if (typeof ordersData !== 'undefined' && Array.isArray(ordersData)) {
                 orders = ordersData;
             } else {
-                orders = [
-                    {% for order in orders %}
-                    {
-                        id: {{ order.id }},
-                        order_id: '{{ order.order_id }}',
-                        type: '{% if order.table %}table #{{ order.table.number }}{% elif order.order_type == 'takeaway' %}Takeaway{% else %}Delivery{% endif %}',
-                        amount: '{{ order.total_amount }}',
-                        status: '{{ order.status }}',
-                        items: {{ order.items.count }}
-                    }{% if not forloop.last %},{% endif %}
-                    {% endfor %}
-                ];
+                const ordersJson = document.getElementById('orders-json');
+                if (ordersJson) {
+                    orders = JSON.parse(ordersJson.textContent);
+                }
             }
 
             orders.forEach(order => {
@@ -131,14 +117,12 @@
                     pendingColumn.appendChild(card);
                     pendingCount++;
                 } else if (status === 'cooking' || status === 'preparing' || status === 'confirmed') {
-                    // Treat 'preparing' and 'confirmed' as the cooking state in the kitchen board
                     cookingColumn.appendChild(card);
                     cookingCount++;
                 } else if (status === 'completed' || status === 'ready' || status === 'ready_to_pickup') {
                     readyColumn.appendChild(card);
                     readyCount++;
                 } else {
-                    // Fallback: place unknown statuses in pending column for visibility
                     pendingColumn.appendChild(card);
                     pendingCount++;
                 }
@@ -155,7 +139,7 @@
 
         function createOrderCard(order) {
             const card = document.createElement('div');
-            card.className = 'card draggable hover-lift';
+            card.className = 'order-card draggable hover-lift';
             card.draggable = true;
             card.setAttribute('role', 'article');
             card.setAttribute('aria-label', `Order ${order.order_id} - ${order.type}`);
@@ -173,33 +157,29 @@
             }[normalized] || '#CCCCCC';
 
             card.innerHTML = `
-                <div class="card-header" style="background: linear-gradient(135deg, #FAFAFA 0%, #F5F5F5 100%); border: none; padding-bottom: 0.75rem; margin-bottom: 0.75rem;">
-                    <div class="d-flex" style="justify-content: space-between; align-items: flex-start;">
-                        <div>
-                            <p style="font-family: 'Courier New', monospace; font-weight: bold; font-size: 1.125rem; color: ${statusColor}; margin: 0;">#${order.order_id}</p>
-                            <p class="text-muted" style="font-size: 0.75rem; margin-top: 0.25rem;">${order.type}</p>
-                        </div>
-                        <span style="font-size: 1.75rem; font-weight: bold; color: ${statusColor};">${order.items}</span>
-                    </div>
+                <div class="order-card-header">
+                    <div class="order-id" style="color: ${statusColor};">#${order.order_id}</div>
+                    <div class="order-type text-muted">${order.type}</div>
                 </div>
-                <div class="card-body">
-                    <div class="d-flex" style="justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-                        <span style="font-size: 0.875rem; font-weight: 500; color: #666666;">Order Total:</span>
-                        <span style="font-weight: bold; font-size: 1.125rem; color: #000000;">Rs.${order.amount}</span>
+                <div class="order-card-body">
+                    <div class="order-amount-row">
+                        <span>Order Total:</span>
+                        <span class="order-amount">Rs.${order.amount}</span>
                     </div>
-                    <div class="text-muted" style="font-size: 0.75rem; margin-bottom: 0.75rem;">
-                        <p style="margin: 0;">Items: <strong>${order.items}</strong></p>
+                    <div class="order-items-row">
+                        <span>Items:</span> <strong>${order.items}</strong>
                     </div>
                     <a href="/restaurant/order_details/${order.order_id}/"
-                       class="btn btn-primary" style="font-size: 0.875rem; padding: 0.5rem 1rem; width: 100%; text-align: center; text-decoration: none; display: d-block;" aria-label="View details for order ${order.order_id}">View Details</a>
+                       class="btn btn-primary btn-sm w-100 mt-2" aria-label="View details for order ${order.order_id}">View Details</a>
                 </div>
             `;
 
             return card;
         }
 
-        // Initialize on page load
-        document.addEventListener('DOMContentLoaded', initializeKitchenBoard);
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeKitchenBoard();
+        });
 
         // Auto-refresh every 5 seconds: fetch latest orders and re-render board
         function refreshKitchenBoard() {
@@ -218,60 +198,270 @@
                 });
         }
 
-        // Auto-refresh every 5 seconds
         setInterval(refreshKitchenBoard, 5000);
     </script>
 
     {% else %}
     <!-- Empty State -->
-    <div class="card" style="text-align: center; padding: 3rem 1rem;">
-        <svg class="mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 4rem; height: 4rem; color: #CCCCCC;">
+    <div class="card empty-state-card">
+        <svg class="mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
         </svg>
-        <h2 style="font-size: 1.5rem; font-weight: bold; color: #000000; margin-bottom: 0.5rem;">No Active Orders</h2>
-        <p class="text-muted" style="margin-bottom: 1.5rem;">All orders have been completed! Great job! 🎉</p>
-        <button onclick="location.reload()" class="btn btn-primary" style="display: d-inline-flex; align-items: center; gap: 0.5rem;">
-            <svg style="width: 1.25rem; height: 1.25rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-            </svg>
-            Check for New Orders
+        <h2>No Active Orders</h2>
+        <p class="text-muted">All orders have been completed! Great job! 🎉</p>
+        <button onclick="location.reload()" class="btn btn-primary">
+            <i class="fas fa-sync"></i> Check for New Orders
         </button>
     </div>
     {% endif %}
 </div>
 
-<style>
+    <style>
+    /* --- Kitchen Page Styles (wrapped properly) --- */
+    .kitchen-header-main h1 {
+        color: #0097a7;
+        letter-spacing: 0.5px;
+    }
+    .kitchen-header-controls .btn-primary {
+        background: linear-gradient(90deg, #00bcd4 0%, #0097a7 100%);
+        border: none;
+    }
+    .kitchen-header-controls .btn-primary:hover {
+        background: linear-gradient(90deg, #0097a7 0%, #00bcd4 100%);
+    }
+    .live-badge {
+        background: #00bcd4 !important;
+        color: #fff !important;
+        border-radius: 8px;
+    }
+    .stat-card {
+        background: #ffffffcc;
+        border-radius: 12px;
+        box-shadow: 0 2px 12px rgba(0,188,212,0.10);
+    }
+    .kitchen-column {
+        background: #ffffffcc;
+        border-radius: 12px;
+        box-shadow: 0 2px 12px rgba(0,188,212,0.10);
+        border: 2px solid #b2ebf2;
+    }
+    .kitchen-column-header.pending {
+        color: #ffb300;
+        border-bottom: 2px solid #ffb300;
+    }
+    .kitchen-column-header.cooking {
+        color: #e57373;
+        border-bottom: 2px solid #e57373;
+    }
+    .kitchen-column-header.ready {
+        color: #009688;
+        border-bottom: 2px solid #009688;
+    }
+    .order-card {
+        background: #e0f7fa;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,188,212,0.10);
+        border: 2px solid #b2ebf2;
+    }
+    .order-card:hover {
+        box-shadow: 0 4px 18px rgba(0,188,212,0.18);
+        border-color: #00bcd4;
+    }
+    .order-id {
+        color: #00bcd4 !important;
+    }
+    .order-amount {
+        color: #0097a7 !important;
+    }
+    .empty-state-card {
+        background: #e0f7fa;
+        border-radius: 12px;
+        color: #0097a7;
+    }
+    .kitchen-header {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        align-items: flex-start;
+        justify-content: space-between;
+    }
+    @media (min-width: 768px) {
+        .kitchen-header {
+            flex-direction: row;
+            align-items: center;
+        }
+    }
+    .kitchen-header-main h1 {
+        font-size: clamp(1.5rem, 5vw, 2.5rem);
+        font-weight: 700;
+    }
+    .kitchen-header-controls {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+    }
+    .live-badge .pulse-dot {
+        width: 0.75rem;
+        height: 0.75rem;
+        background: #fff;
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+        display: inline-block;
+    }
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 1.25rem;
+        margin-bottom: 2rem;
+    }
+    .stat-card {
+        background: #fff;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+        padding: 1.25rem 1rem;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        min-height: 90px;
+    }
+    .stat-label {
+        font-size: 0.95rem;
+        color: #888;
+        margin-bottom: 0.5rem;
+    }
+    .stat-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #212529;
+    }
+    .kitchen-board-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    .kitchen-column {
+        background: #fff;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+        padding: 1rem 0.75rem 1.5rem 0.75rem;
+        min-height: 400px;
+        display: flex;
+        flex-direction: column;
+    }
+    .kitchen-column-header {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        justify-content: space-between;
+    }
+    .status-dot {
+        width: 0.75rem;
+        height: 0.75rem;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 0.5rem;
+    }
+    .status-dot.pending { background: #ffc107; }
+    .status-dot.cooking { background: #dc3545; animation: pulse 2s infinite; }
+    .status-dot.ready { background: #198754; }
+    .kitchen-column-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+    .order-card {
+        background: #f8f9fa;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        padding: 1rem 1rem 0.75rem 1rem;
+        transition: box-shadow 0.2s, transform 0.2s;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        min-height: 120px;
+        cursor: pointer;
+    }
+    .order-card:hover {
+        box-shadow: 0 4px 16px rgba(0,0,0,0.13);
+        transform: translateY(-2px) scale(1.02);
+    }
+    .order-card-header {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    .order-id {
+        font-family: 'Courier New', monospace;
+        font-weight: bold;
+        font-size: 1.1rem;
+    }
+    .order-type {
+        font-size: 0.85rem;
+        color: #888;
+    }
+    .order-card-body {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    .order-amount-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.95rem;
+        font-weight: 500;
+        color: #666;
+    }
+    .order-amount {
+        font-weight: bold;
+        font-size: 1.1rem;
+        color: #000;
+    }
+    .order-items-row {
+        font-size: 0.9rem;
+        color: #555;
+    }
+    .empty-state-card {
+        text-align: center;
+        padding: 3rem 1rem;
+        background: #fff;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+        margin-top: 2rem;
+    }
+    .empty-state-card h2 {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #000;
+        margin-bottom: 0.5rem;
+    }
     @keyframes pulse {
         0%, 100% { opacity: 1; }
         50% { opacity: 0.5; }
     }
-
-    @media (max-width: 768px) {
-        div[style*="min-height: 400px"] {
-            min-height: 300px !important;
+    @media (max-width: 900px) {
+        .kitchen-board-grid {
+            grid-template-columns: 1fr;
+        }
+        .kitchen-column {
+            min-height: 300px;
         }
     }
-
-    .draggable {
-        opacity: 1;
-        : opacity 0.3s ease;
+    @media (max-width: 600px) {
+        .stats-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+        .kitchen-board-grid {
+            grid-template-columns: 1fr;
+        }
+        .kitchen-header-main h1 {
+            font-size: 1.3rem;
+        }
     }
-
-    .draggable.dragging {
-        opacity: 0.5;
-    }
-
-    .drop-zone {
-        min-height: 100px;
-        background: rgba(0, 0, 0, 0.05);
-        border: 2px dashed rgba(0, 0, 0, 0.3);
-        border-radius: 0.375rem;
-        : all 0.3s ease;
-    }
-
-    .drop-zone.drag-over {
-        background: rgba(0, 0, 0, 0.1);
-        border-color: rgba(0, 0, 0, 0.6);
-    }
-</style>
+    /* --- End Kitchen Page Styles --- */
+    </style>
 {% endblock %}

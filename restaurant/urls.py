@@ -64,6 +64,8 @@ urlpatterns = [
     
     # Transaction History
     path('transaction_history/', views.transaction_history, name='transaction_history'),
+    path('transaction_history/export/csv/', views.export_orders_csv, name='export_orders_csv'),
+    path('transaction_history/export/pdf/', views.export_orders_pdf, name='export_orders_pdf'),
     path('order_history_details/<str:order_id>/', views.order_history_details, name='order_history_details'),
     path('order_update_notes/<str:order_id>/', views.order_update_notes, name='order_update_notes'),
     # serve a favicon shortcut to avoid 404 in dev

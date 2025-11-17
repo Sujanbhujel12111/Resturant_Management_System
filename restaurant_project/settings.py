@@ -27,7 +27,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'home',  # Add your app here
-    'restaurant',  # Add your app here
+    'restaurant',
+    'widget_tweaks',  # Add your app here
 ]
 
 MIDDLEWARE = [

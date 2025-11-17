@@ -1,15 +1,39 @@
 {% extends 'restaurant/base.html' %}
+{% load widget_tweaks %}
 
 {% block title %}Confirm Delete{% endblock %}
 
 {% block content %}
-<div class="container-fluid mt-10">
-    <h1 class="text-4xl fw-bold mb-4">Confirm Delete</h1>
-    <p class="h4 mb-3">Are you sure you want to delete the menu item "{{ object.name }}"?</p>
-    <form method="post">
-        {% csrf_token %}
-        <button type="submit" class="py-2 px-3 bg-danger text-white rounded bg-danger">Confirm Delete</button>
-        <a href="{% url 'restaurant:menuitem_list' %}" class="py-2 px-3 bg-light0 text-white rounded bg-secondary">Cancel</a>
-    </form>
+<div class="container-fluid py-5">
+    <div class="row justify-content-center">
+        <div class="col-12 col-md-7 col-lg-5">
+            <div class="card shadow menuitem-delete-card">
+                <div class="card-body p-4 text-center">
+                    <h1 class="h3 fw-bold text-danger mb-3">Confirm Delete</h1>
+                    <p class="mb-4">Are you sure you want to delete the menu item <span class="fw-semibold">"{{ object.name }}"</span>?</p>
+                    <form method="post" class="d-flex flex-column flex-md-row gap-3 justify-content-center align-items-center">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger px-4">Confirm Delete</button>
+                        <a href="{% url 'restaurant:menuitem_list' %}" class="btn btn-secondary px-4">Cancel</a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
+<style>
+    .menuitem-delete-card {
+        border-radius: 16px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        margin-bottom: 2rem;
+    }
+    @media (max-width: 600px) {
+        .menuitem-delete-card {
+            padding: 0.5rem;
+        }
+        .card-body {
+            padding: 1rem !important;
+        }
+    }
+</style>
 {% endblock %}

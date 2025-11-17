@@ -2,11 +2,7 @@
 
 {% block title %}Transaction History{% endblock %}
 
-{% block extrahead %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-{% endblock %}
+{% block extrahead %}{% endblock %}
 
 {% block content %}
 <div class="container-fluid p-3 p-md-4">
@@ -18,33 +14,32 @@
             <div class="row g-3">
                 <div class="col-12 col-md-6 col-lg-3">
                     <label class="form-label small fw-semibold">Start Date</label>
-                    <input type="date" id="start-date" class="form-control form-control-sm">
+                    <input type="date" id="start-date" class="form-control form-control-sm" value="{{ start_date }}">
                 </div>
                 <div class="col-12 col-md-6 col-lg-3">
                     <label class="form-label small fw-semibold">End Date</label>
-                    <input type="date" id="end-date" class="form-control form-control-sm">
+                    <input type="date" id="end-date" class="form-control form-control-sm" value="{{ end_date }}">
                 </div>
                 <div class="col-12 col-md-6 col-lg-3">
                     <label class="form-label small fw-semibold">Order Type</label>
                     <select id="order-type" class="form-select form-select-sm">
-                        <option value="">All</option>
-                        <option value="table">Table</option>
-                        <option value="takeaway">Takeaway</option>
-                        <option value="delivery">Delivery</option>
+                        <option value="" {% if not order_type %}selected{% endif %}>All</option>
+                        <option value="table" {% if order_type == 'table' %}selected{% endif %}>Table</option>
+                        <option value="takeaway" {% if order_type == 'takeaway' %}selected{% endif %}>Takeaway</option>
+                        <option value="delivery" {% if order_type == 'delivery' %}selected{% endif %}>Delivery</option>
                     </select>
                 </div>
                 <div class="col-12 col-md-6 col-lg-3">
                     <label class="form-label small fw-semibold">Status</label>
                     <select id="status-filter" class="form-select form-select-sm">
-                        <option value="">All</option>
-                        <option value="completed">Completed</option>
-                        <option value="cancelled">Cancelled</option>
-                        <option value="pending">Pending</option>
+                        <option value="" {% if not status %}selected{% endif %}>All</option>
+                        <option value="completed" {% if status == 'completed' %}selected{% endif %}>Completed</option>
+                        <option value="cancelled" {% if status == 'cancelled' %}selected{% endif %}>Cancelled</option>
                     </select>
                 </div>
                 <div class="col-12 col-md-6 col-lg-3">
                     <label class="form-label small fw-semibold">Search</label>
-                    <input type="text" id="search-input" class="form-control form-control-sm" placeholder="Search orders...">
+                    <input type="text" id="search-input" class="form-control form-control-sm" placeholder="Search orders..." value="{{ q }}">
                 </div>
             </div>
         </div>
@@ -54,19 +49,19 @@
         <div class="d-flex align-items-center gap-2">
             <small class="text-secondary">Show</small>
             <select id="entries-select" class="form-select form-select-sm" style="width: auto;">
-                <option value="10">10</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
+                <option value="10" {% if entries == '10' %}selected{% endif %}>10</option>
+                <option value="50" {% if entries == '50' %}selected{% endif %}>50</option>
+                <option value="100" {% if entries == '100' %}selected{% endif %}>100</option>
             </select>
             <small class="text-secondary">entries</small>
         </div>
         <div class="d-flex gap-2 flex-wrap">
-            <button onclick="exportToExcel()" class="btn btn-success btn-sm">
+            <a href="{% url 'restaurant:export_orders_csv' %}{% if params %}?{{ params }}{% endif %}" class="btn btn-success btn-sm" role="button">
                 <i class="fas fa-file-excel me-2"></i>Export Excel
-            </button>
-            <button onclick="generatePDF()" class="btn btn-danger btn-sm">
+            </a>
+            <a href="{% url 'restaurant:export_orders_pdf' %}{% if params %}?{{ params }}{% endif %}" class="btn btn-danger btn-sm" role="button">
                 <i class="fas fa-file-pdf me-2"></i>Export PDF
-            </button>
+            </a>
         </div>
     </div>
 
@@ -108,8 +103,9 @@
                         {% endif %}
                     </td>
                     <td class="py-2 px-3 border-bottom">
-                        <button onclick="showOrderDetails('{{ order.order_id }}')" 
-                                class="btn btn-primary btn-sm">
+                        <button data-order-id="{{ order.order_id }}" 
+                            data-order-url="{% url 'restaurant:order_history_details' order.order_id %}"
+                            class="btn btn-primary btn-sm order-details-btn">
                             View Details
                         </button>
                     </td>
@@ -176,6 +172,7 @@
             <div class="skeleton-row items"></div>
             <div class="skeleton-row footer"></div>
         </div>
+        <div id="modal-error" class="text-danger small mt-2" style="display:none;"></div>
 
         <div id="modal-content" class="modal-body">
             <!-- Basic Information -->
@@ -274,6 +271,17 @@
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.3s ease-out;
+}
+
+/* Ensure aria-hidden overlays do not block pointer/wheel events */
+.modal-overlay[aria-hidden="true"] {
+    display: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+.modal-overlay[aria-hidden="false"] {
+    opacity: 1 !important;
+    pointer-events: auto !important;
 }
 
 .modal-overlay.show {
@@ -469,510 +477,211 @@
 }
 </style>
 
+{% comment %} JavaScript removed per request. {% endcomment %}
+{% endblock %}
+
+{% block extra_js %}
 <script>
-let currentData = [];
-
-function filterAndDisplayData() {
-    const searchTerm = document.getElementById('search-input')?.value.toLowerCase() || '';
-    const orderType = document.getElementById('order-type')?.value || '';
-    const entriesSelect = document.getElementById('entries-select');
-    const entriesPerPage = entriesSelect ? parseInt(entriesSelect.value) : 10;
-
-    const rows = Array.from(document.querySelectorAll('tbody tr'));
-    currentData = rows.map(row => ({
-        row: row,
-        searchText: row.textContent.toLowerCase(),
-        orderType: row.getAttribute('data-order-type') || ''
-    }));
-
-    let filtered = currentData.filter(item => {
-        const matchesSearch = item.searchText.includes(searchTerm);
-        const matchesType = !orderType || item.orderType === orderType;
-        return matchesSearch && matchesType;
-    });
-
-    currentData.forEach(item => item.row.style.display = 'none');
-    filtered.slice(0, entriesPerPage).forEach(item => item.row.style.display = '');
-
-    updatePagination(Math.ceil(filtered.length / entriesPerPage), 1, entriesPerPage);
-}
-
-function updatePagination(totalPages, currentPage, entriesPerPage) {
-    const paginationDiv = document.querySelector('.pagination');
-    let html = '';
-    
-    for (let i = 1; i <= totalPages; i++) {
-        html += `<button class="px-3 py-1 border rounded ${i === currentPage ? 'bg-primary text-white' : 'bg-light'}"
-                         onclick="showPage(${i}, ${entriesPerPage})">${i}</button>`;
-    }
-    
-    paginationDiv.innerHTML = html;
-}
-
-function showPage(pageNum, entriesPerPage) {
-    const start = (pageNum - 1) * entriesPerPage;
-    const searchTerm = document.getElementById('search-input')?.value.toLowerCase() || '';
-    const orderType = document.getElementById('order-type')?.value || '';
-
-    const filtered = currentData.filter(item => {
-        const matchesSearch = item.searchText.includes(searchTerm);
-        const matchesType = !orderType || item.orderType === orderType;
-        return matchesSearch && matchesType;
-    });
-
-    currentData.forEach(item => item.row.style.display = 'none');
-    filtered.slice(start, start + entriesPerPage).forEach(item => item.row.style.display = '');
-}
-
-function generatePDF() {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    const table = document.getElementById('orders-table');
-    
-    html2canvas(table).then(canvas => {
-        const imgData = canvas.toDataURL('image/png');
-        const imgWidth = 190;
-        const pageHeight = 290;
-        const imgHeight = canvas.height * imgWidth / canvas.width;
-        let heightLeft = imgHeight;
-        let position = 0;
-        
-        doc.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-        
-        while (heightLeft >= 0) {
-            position = heightLeft - imgHeight;
-            doc.addPage();
-            doc.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
-            heightLeft -= pageHeight;
-        }
-        
-        doc.save('transaction-history.pdf');
-    });
-}
-
-function exportToExcel() {
-    const table = document.getElementById('orders-table');
-    const ws = XLSX.utils.table_to_sheet(table);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Transaction History');
-    XLSX.writeFile(wb, 'transaction-history.xlsx');
-}
-
-function showOrderDetails(orderId) {
-    const modal = document.getElementById('order-details-modal');
-    const spinner = document.getElementById('modal-spinner');
-    const skeleton = document.getElementById('modal-skeleton');
-    const content = document.getElementById('modal-content');
-    
-    // Show modal and spinner, hide content
-    console.debug('[OrderDetails] opening modal for', orderId, 'before state:', {
-        bodyOverflow: document.body.style.overflow,
-        modalClasses: modal.className,
-        dialogClasses: document.querySelector('.modal-dialog')?.className
-    });
-    // Ensure modal overlay is a top-level child so it can sit above header/navbar
-    try {
-        if (modal && modal.parentNode !== document.body) document.body.appendChild(modal);
-    } catch (e) {}
-    modal.classList.add('show');
-    modal.setAttribute('aria-hidden', 'false');
-    // show skeleton loader for perceived performance; keep spinner as fallback
-    if (skeleton) { skeleton.classList.add('show'); skeleton.setAttribute('aria-hidden', 'false'); }
-    if (spinner) spinner.classList.remove('show');
-    content.classList.remove('show');
-    // Accessibility: trap focus inside modal while open
-    try { activateFocusTrap(modal); } catch (e) { /* non-fatal */ }
-    try { document.body.style.overflow = 'hidden'; } catch (e) {}
-    // small delay to let browser apply styles, then focus dialog
-    setTimeout(() => {
-        const dialog = document.querySelector('.modal-dialog');
-        if (dialog) {
-            try { dialog.focus(); } catch (e) {}
-        }
-        console.debug('[OrderDetails] after open:', {
-            bodyOverflow: document.body.style.overflow,
-            modalClasses: modal.className,
-            dialogClasses: document.querySelector('.modal-dialog')?.className
-        });
-    }, 50);
-
-    const url = `/restaurant/order_history_details/${orderId}/`;
-    console.log('Fetching order details for', orderId, 'URL:', url);
-
-    const controller = new AbortController();
-    const signal = controller.signal;
-    const timeoutMs = 10000;
-    const timeoutId = setTimeout(() => {
-        controller.abort();
-    }, timeoutMs);
-
-    fetch(url, { method: 'GET', credentials: 'same-origin', signal })
-        .then(response => {
-            console.log('Fetch response status:', response.status);
-            if (!response.ok) {
-                throw new Error('Network response was not ok: ' + response.status);
-            }
-            return response.json();
-        })
-        .then(data => {
-            console.log('Response data:', data);
-            clearTimeout(timeoutId);
-
-            document.getElementById('modal-order-id').textContent = data.order_id;
-            document.getElementById('modal-customer-name').textContent = data.customer_name;
-            document.getElementById('modal-customer-phone').textContent = data.customer_phone || 'N/A';
-
-            let orderTypeText = data.order_type;
-            if (data.order_type === 'table' && data.table) {
-                orderTypeText = `table #${data.table.number}`;
-            }
-            document.getElementById('modal-order-type').textContent = orderTypeText;
-            document.getElementById('modal-completed-by').textContent = data.completed_by || 'N/A';
-            document.getElementById('modal-total-amount').textContent = `Rs.${data.total_amount}`;
-            
-            // Show cancellation reason if status is cancelled and reason exists
-            const cancellationReasonContainer = document.getElementById('modal-cancellation-reason-container');
-            const cancellationReasonElement = document.getElementById('modal-cancellation-reason');
-            if (data.status === 'cancelled' && data.cancellation_reason) {
-                cancellationReasonElement.textContent = data.cancellation_reason;
-                cancellationReasonContainer.style.display = 'block';
-            } else {
-                cancellationReasonContainer.style.display = 'none';
-            }
-
-            const paymentMethodsContainer = document.getElementById('modal-payment-methods');
-            paymentMethodsContainer.innerHTML = '';
-            
-            if (data.payments && data.payments.length > 0) {
-                data.payments.forEach(payment => {
-                    const paymentDiv = document.createElement('div');
-                    paymentDiv.className = 'd-flex justify-content-between align-items-center py-2';
-                    paymentDiv.innerHTML = `
-                        <span class="fw-semibold">${payment.method}:</span>
-                        <span>Rs.${payment.amount}</span>
-                        ${payment.transaction_id ? `<span class="small text-muted">(${payment.transaction_id})</span>` : ''}
-                    `;
-                    paymentMethodsContainer.appendChild(paymentDiv);
-                });
-            } else {
-                paymentMethodsContainer.innerHTML = '<p class="text-muted">No payment information available</p>';
-            }
-
-            document.getElementById('modal-created-date').textContent = new Date(data.created_at).toLocaleString();
-            document.getElementById('modal-completed-date').textContent = new Date(data.updated_at).toLocaleString();
-            document.getElementById('modal-special-notes').textContent = data.special_notes || 'N/A';
-            // Prefill notes textarea for editing
-            const notesInput = document.getElementById('modal-notes-input');
-            if (notesInput) notesInput.value = data.special_notes || '';
-
-            const itemsContainer = document.getElementById('modal-order-items');
-            itemsContainer.innerHTML = '';
-            
-            if (data.items && data.items.length > 0) {
-                const headerDiv = document.createElement('div');
-                headerDiv.className = 'd-flex justify-content-between align-items-center py-2 fw-bold border-bottom';
-                headerDiv.innerHTML = `
-                    <span style="flex: 0.5;">Item</span>
-                    <span style="flex: 0.167; text-align: center;">Qty</span>
-                    <span style="flex: 0.167; text-align: right;">Price</span>
-                    <span style="flex: 0.167; text-align: right;">Total</span>
-                `;
-                itemsContainer.appendChild(headerDiv);
-                
-                data.items.forEach(item => {
-                    const itemDiv = document.createElement('div');
-                    itemDiv.className = 'item-row border-bottom';
-                    itemDiv.innerHTML = `
-                        <span class="item-name">${item.item_name}</span>
-                        <span class="item-qty">${item.quantity}</span>
-                        <span class="item-price">Rs.${item.price}</span>
-                        <span class="item-total">Rs.${item.total}</span>
-                    `;
-                    itemsContainer.appendChild(itemDiv);
-                });
-            } else {
-                const noItemsDiv = document.createElement('div');
-                noItemsDiv.className = 'text-center py-3 text-muted';
-                noItemsDiv.textContent = 'No items found for this order';
-                itemsContainer.appendChild(noItemsDiv);
-            }
-
-            // Hide skeleton/spinner and show content
-            if (skeleton) { skeleton.classList.remove('show'); skeleton.setAttribute('aria-hidden', 'true'); }
-            if (spinner) spinner.classList.remove('show');
-            content.classList.add('show');
-
-            // Focus dialog after content is populated
-            setTimeout(() => {
-                const dialog = modal.querySelector('.modal-dialog');
-                if (dialog) try { dialog.focus(); } catch (e) {}
-            }, 20);
-        })
-        .catch(error => {
-            console.error('Error fetching order details:', error);
-            if (skeleton) { skeleton.classList.remove('show'); skeleton.setAttribute('aria-hidden', 'true'); }
-            if (spinner) spinner.classList.remove('show');
-            content.classList.remove('show');
-            modal.classList.remove('show');
-            modal.setAttribute('aria-hidden', 'true');
-            try { releaseFocusTrap(modal); } catch (e) {}
-            document.body.style.overflow = '';
-
-            if (error.name === 'AbortError') {
-                alert('Request timed out. The server may be slow or unavailable.');
-            } else {
-                alert('Error loading order details. Please try again. See console for details.');
-            }
-        });
-}
-
-// CSRF helper for Django
-function getCookie(name) {
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop().split(';').shift();
-}
-
-// Notes form: attach submit handler (uses delegation to avoid duplicates)
-document.addEventListener('submit', function(e) {
-    const form = e.target;
-    if (!form || form.id !== 'modal-notes-form') return;
-    e.preventDefault();
-    const modal = document.getElementById('order-details-modal');
-    const orderId = document.getElementById('modal-order-id')?.textContent;
-    const notesInput = document.getElementById('modal-notes-input');
-    const errorEl = document.getElementById('modal-notes-error');
-    const successEl = document.getElementById('modal-notes-success');
-    if (!notesInput) return;
-    const notes = notesInput.value.trim();
-    errorEl.style.display = 'none';
-    successEl.style.display = 'none';
-    if (!notes) {
-        errorEl.style.display = '';
-        return;
-    }
-
-    // POST notes via AJAX to server endpoint (must exist on backend)
-    const url = `/restaurant/order_update_notes/${orderId || ''}/`;
-    const csrftoken = getCookie('csrftoken');
-    fetch(url, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrftoken || ''
-        },
-        body: JSON.stringify({ notes })
-    }).then(resp => {
-        if (!resp.ok) throw new Error('Network response was not ok');
-        return resp.json();
-    }).then(data => {
-        successEl.style.display = '';
-        setTimeout(() => { successEl.style.display = 'none'; }, 2000);
-        // update displayed notes
-        const notesDisplay = document.getElementById('modal-special-notes');
-        if (notesDisplay) notesDisplay.textContent = notes;
-    }).catch(err => {
-        console.error('Error saving notes:', err);
-        alert('Could not save notes. See console for details.');
-    });
-});
-
-function closeModal() {
+// Minimal modal accessibility helper: open/close modal, trap focus, apply inert to background.
+(function(){
     const modal = document.getElementById('order-details-modal');
     if (!modal) return;
-    // Hide modal
-    modal.classList.remove('show');
-    modal.setAttribute('aria-hidden', 'true');
-    try { releaseFocusTrap(modal); } catch (e) {}
+    const dialog = modal.querySelector('.modal-dialog');
+    const closeBtn = document.getElementById('modal-close-btn');
+    let _lastActive = null;
 
-    // Restore body scroll in all cases
-    try { document.body.style.overflow = ''; } catch (e) {}
-
-    // Also clear any landscape classes so next open starts clean
-    try {
-        const dialog = modal.querySelector('.modal-dialog');
-        const content = document.getElementById('modal-content');
-        if (dialog) dialog.classList.remove('landscape');
-        if (content) content.classList.remove('landscape');
-        const btn = document.getElementById('modal-landscape-btn');
-        if (btn) btn.classList.remove('active');
-    } catch (e) {}
-
-    // Remove focus from dialog to avoid focus-based scroll traps
-    try { if (document.activeElement) document.activeElement.blur(); } catch (e) {}
-}
-
-// Small helper: try to restore body overflow a few times in case other code briefly re-applies hidden
-function ensureBodyScrollRestored() {
-    try {
-        let tries = 0;
-        const iv = setInterval(() => {
-            try { document.body.style.overflow = ''; } catch (e) {}
-            tries++;
-            if (document.body.style.overflow === '' || tries > 8) clearInterval(iv);
-        }, 40);
-    } catch (e) {}
-}
-
-// Focus trap helpers: keep keyboard focus contained in modal while open
-let _lastActiveElement = null;
-function activateFocusTrap(modal) {
-    if (!modal) return;
-    _lastActiveElement = document.activeElement;
-    const focusableSelector = 'a[href], area[href], input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])';
-    const focusables = Array.from(modal.querySelectorAll(focusableSelector)).filter(el => el.offsetParent !== null);
-    modal._focusable = focusables;
-
-    function keyHandler(e) {
-        if (e.key !== 'Tab') return;
-        const list = modal._focusable || [];
-        if (!list.length) { e.preventDefault(); return; }
-        const idx = list.indexOf(document.activeElement);
-        if (e.shiftKey) {
-            if (idx <= 0) { list[list.length - 1].focus(); e.preventDefault(); }
-        } else {
-            if (idx === list.length - 1 || idx === -1) { list[0].focus(); e.preventDefault(); }
-        }
-    }
-
-    modal._focusTrapHandler = keyHandler;
-    document.addEventListener('keydown', keyHandler);
-    // move focus to first focusable element (close button) after small delay
-    setTimeout(() => {
-        if (modal._focusable && modal._focusable.length) modal._focusable[0].focus();
-        else {
-            const dialog = modal.querySelector('.modal-dialog');
-            try { dialog && dialog.focus(); } catch (e) {}
-        }
-    }, 40);
-}
-
-function releaseFocusTrap(modal) {
-    try {
-        if (modal && modal._focusTrapHandler) document.removeEventListener('keydown', modal._focusTrapHandler);
-        if (_lastActiveElement && typeof _lastActiveElement.focus === 'function') _lastActiveElement.focus();
-    } catch (e) {}
-    if (modal) { modal._focusable = null; modal._focusTrapHandler = null; }
-    _lastActiveElement = null;
-}
-
-/* landscape toggle removed */
-
-// Apply persisted preference
-document.addEventListener('DOMContentLoaded', function() {
-    // landscape preference removed
-});
-
-document.getElementById('order-details-modal').addEventListener('click', function(e) {
-    // Only close if the click is outside the dialog element.
-    const overlay = this;
-    const dialog = overlay.querySelector('.modal-dialog');
-    if (!dialog) return;
-    const rect = dialog.getBoundingClientRect();
-    const x = e.clientX;
-    const y = e.clientY;
-    // if click coordinates are outside the dialog bounds, close
-    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
-        console.debug('[OrderDetails] overlay click outside dialog -> closing', { bodyOverflow: document.body.style.overflow });
-        closeModal();
-        ensureBodyScrollRestored();
-    }
-});
-
-// Forward/guard wheel events: if wheel occurs inside dialog, allow modal-body to scroll; otherwise prevent background scroll
-document.getElementById('order-details-modal').addEventListener('wheel', function(e) {
-    try {
-        const overlay = this;
-        const dialog = overlay.querySelector('.modal-dialog');
-        const body = document.getElementById('modal-content');
-        if (!dialog || !body) return;
-        const rect = dialog.getBoundingClientRect();
-        const x = e.clientX, y = e.clientY;
-        const insideDialog = (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom);
-
-        if (insideDialog) {
-            // let the modal body handle the scroll normally
-            return;
-        }
-
-        // Click/wheel outside dialog should not scroll the page — prevent default
-        e.preventDefault();
-    } catch (err) {
-        // ignore
-    }
-}, { passive: false });
-
-// Safety: if any overlay is removed directly, ensure body overflow is restored
-document.addEventListener('DOMNodeRemoved', function(e) {
-    try {
-        if (e.target && e.target.classList && e.target.classList.contains('modal-overlay')) {
-            // small defer to let other handlers finish
-            setTimeout(() => { try { document.body.style.overflow = ''; } catch (err) {} }, 10);
-        }
-    } catch (err) {}
-});
-
-// Prevent clicks inside the dialog from bubbling up to the overlay
-(function() {
-    const dialogEl = document.querySelector('.modal-dialog');
-    if (dialogEl) {
-        dialogEl.addEventListener('click', function(e) {
-            e.stopPropagation();
-        });
-        const contentEl = document.getElementById('modal-content');
-        if (contentEl) {
-            contentEl.addEventListener('click', function(e) {
-                e.stopPropagation();
-            });
-        }
-    }
-})();
-// Ensure header buttons are always wired (defensive) and log clicks for debugging
-(function() {
-    function safe(id, cb) {
+    function setBackgroundInert(m, inert) {
         try {
-            const el = document.getElementById(id);
-            if (el) {
-                el.addEventListener('click', function(e) {
-                    console.debug('[OrderDetails] button click', id);
-                    try { cb(e); } catch (err) { console.error(err); }
-                });
-            }
-        } catch (err) { console.error(err); }
+            const skip = ['SCRIPT','STYLE','LINK','META','TEMPLATE'];
+            Array.from(document.body.children).forEach(el => {
+                if (el === m) return;
+                if (skip.includes(el.tagName)) return;
+                if (inert) {
+                    if (el.hasAttribute('aria-hidden')) el.dataset._prevAriah = el.getAttribute('aria-hidden');
+                    el.setAttribute('inert','');
+                    el.setAttribute('aria-hidden','true');
+                } else {
+                    el.removeAttribute('inert');
+                    if (el.dataset && typeof el.dataset._prevAriah !== 'undefined') {
+                        el.setAttribute('aria-hidden', el.dataset._prevAriah);
+                        delete el.dataset._prevAriah;
+                    } else {
+                        el.removeAttribute('aria-hidden');
+                    }
+                }
+            });
+        } catch (e) { /* non-fatal */ }
     }
 
-    safe('modal-close-btn', function(e) { e.preventDefault(); closeModal(); ensureBodyScrollRestored(); });
-})();
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-        const modal = document.getElementById('order-details-modal');
-        if (modal && modal.classList.contains('show')) {
-            closeModal();
+    function trapHandler(e) {
+        if (e.key === 'Escape') { closeModal(); return; }
+        if (e.key !== 'Tab') return;
+        const focusables = Array.from(modal.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'));
+        if (!focusables.length) { e.preventDefault(); return; }
+        const idx = focusables.indexOf(document.activeElement);
+        if (e.shiftKey) {
+            if (idx <= 0) { focusables[focusables.length-1].focus(); e.preventDefault(); }
+        } else {
+            if (idx === focusables.length-1 || idx === -1) { focusables[0].focus(); e.preventDefault(); }
         }
     }
-});
 
-document.addEventListener('DOMContentLoaded', function() {
-    // Wire filter controls to perform server-side filtering via query params
-    const searchInput = document.getElementById('search-input');
-    const orderTypeSelect = document.getElementById('order-type');
-    const statusFilter = document.getElementById('status-filter');
-    const entriesSelect = document.getElementById('entries-select');
-    const startDate = document.getElementById('start-date');
-    const endDate = document.getElementById('end-date');
-
-    function applyFiltersDelayed() {
-        // small debounce
-        if (window._filterTimeout) clearTimeout(window._filterTimeout);
-        window._filterTimeout = setTimeout(applyFilters, 500);
+    function openModal() {
+        _lastActive = document.activeElement;
+        if (modal.parentNode !== document.body) document.body.appendChild(modal);
+        modal.classList.add('show');
+        modal.setAttribute('aria-hidden','false');
+        setBackgroundInert(modal, true);
+        try { document.body.style.overflow = 'hidden'; } catch (e) {}
+        document.addEventListener('keydown', trapHandler);
+        // focus first focusable (close button)
+        setTimeout(() => { try { closeBtn && closeBtn.focus(); } catch (e) {} }, 10);
     }
+
+    function closeModal() {
+        document.removeEventListener('keydown', trapHandler);
+        try { if (_lastActive && typeof _lastActive.focus === 'function') _lastActive.focus(); } catch (e) {}
+        setBackgroundInert(modal, false);
+        modal.classList.remove('show');
+        modal.setAttribute('aria-hidden','true');
+        try { document.body.style.overflow = ''; } catch (e) {}
+    }
+
+    // Delegated click: open when any .order-details-btn clicked
+    document.addEventListener('click', function(e){
+        const btn = e.target.closest('.order-details-btn');
+        if (!btn) return;
+        e.preventDefault();
+        const url = btn.getAttribute('data-order-url');
+        if (!url) { openModal(); return; }
+        // show modal with skeleton/spinner while loading
+        const spinner = document.getElementById('modal-spinner');
+        const skeleton = document.getElementById('modal-skeleton');
+        const content = document.getElementById('modal-content');
+        if (spinner) spinner.classList.add('show');
+        if (skeleton) skeleton.classList.add('show');
+        if (content) content.style.display = 'none';
+
+        openModal();
+
+        fetch(url, { credentials: 'same-origin' })
+            .then(resp => {
+                if (!resp.ok) throw new Error('Failed to load');
+                return resp.json();
+            })
+            .then(data => {
+                // populate fields
+                try {
+                    document.getElementById('modal-order-id').textContent = data.order_id || '';
+                    document.getElementById('modal-customer-name').textContent = data.customer_name || '';
+                    document.getElementById('modal-customer-phone').textContent = data.customer_phone || '';
+                    // order type / table
+                    const ot = data.order_type || '';
+                    let otText = ot;
+                    if (data.table && data.table.number) otText = 'table #' + data.table.number;
+                    if (ot === 'takeaway') otText = 'Takeaway';
+                    if (ot === 'delivery') otText = 'Delivery';
+                    document.getElementById('modal-order-type').textContent = otText;
+                    document.getElementById('modal-completed-by').textContent = data.completed_by || 'N/A';
+                    document.getElementById('modal-total-amount').textContent = data.total_amount ? ('Rs.' + data.total_amount) : '';
+
+                    // cancellation reason
+                    if (data.cancellation_reason) {
+                        const ctr = document.getElementById('modal-cancellation-reason-container');
+                        document.getElementById('modal-cancellation-reason').textContent = data.cancellation_reason;
+                        if (ctr) ctr.style.display = '';
+                    } else {
+                        const ctr = document.getElementById('modal-cancellation-reason-container');
+                        if (ctr) ctr.style.display = 'none';
+                    }
+
+                    // payments
+                    const paymentsEl = document.getElementById('modal-payment-methods');
+                    paymentsEl.innerHTML = '';
+                    if (data.payments && data.payments.length) {
+                        data.payments.forEach(p => {
+                            const line = document.createElement('div');
+                            line.textContent = (p.method ? p.method + ': ' : '') + (p.amount != null ? ('Rs.' + p.amount) : '');
+                            paymentsEl.appendChild(line);
+                        });
+                    }
+
+                    // items
+                    const itemsEl = document.getElementById('modal-order-items');
+                    itemsEl.innerHTML = '';
+                    if (data.items && data.items.length) {
+                        data.items.forEach(it => {
+                            const row = document.createElement('div');
+                            row.className = 'item-row';
+                            row.innerHTML = '<div class="item-name">' + (it.item_name || '') + '</div>' +
+                                            '<div class="item-qty">Qty: ' + (it.quantity || '') + '</div>' +
+                                            '<div class="item-price">Rs.' + (it.price || '') + '</div>' +
+                                            '<div class="item-total">Rs.' + ((it.total != null) ? it.total : '') + '</div>';
+                            itemsEl.appendChild(row);
+                        });
+                    }
+
+                    // notes, dates
+                    document.getElementById('modal-special-notes').textContent = data.special_notes || '';
+                    const created = document.getElementById('modal-created-date');
+                    const completed = document.getElementById('modal-completed-date');
+                    created.textContent = data.created_at ? new Date(data.created_at).toLocaleString() : '';
+                    completed.textContent = data.updated_at ? new Date(data.updated_at).toLocaleString() : '';
+
+                    // set notes form target (store current order id/url)
+                    const notesForm = document.getElementById('modal-notes-form');
+                    notesForm.dataset.orderId = data.order_id;
+
+                } catch (e) {
+                    console.error('Error populating modal', e);
+                }
+            })
+            .catch(err => {
+                console.error('Failed to load order details', err);
+                const errEl = document.getElementById('modal-error');
+                if (errEl) {
+                    errEl.textContent = 'Failed to load order details. Please try again.';
+                    errEl.style.display = '';
+                }
+            })
+            .finally(() => {
+                if (spinner) spinner.classList.remove('show');
+                if (skeleton) skeleton.classList.remove('show');
+                if (content) content.style.display = '';
+            });
+    });
+
+    // overlay click closes if clicked outside dialog
+    modal.addEventListener('click', function(e){
+        if (e.target === modal) closeModal();
+    });
+
+    if (closeBtn) closeBtn.addEventListener('click', function(e){ e.preventDefault(); closeModal(); });
+})();
+</script>
+<script>
+// Filter controls: update query params and reload (debounced for search)
+(function(){
+    function getInput(id){ return document.getElementById(id); }
+    const searchInput = getInput('search-input');
+    const orderType = getInput('order-type');
+    const statusFilter = getInput('status-filter');
+    const entriesSelect = getInput('entries-select');
+    const startDate = getInput('start-date');
+    const endDate = getInput('end-date');
+
+    let _searchTimer = null;
+    const debounceSearch = (fn, delay=400) => {
+        return function(){
+            clearTimeout(_searchTimer);
+            _searchTimer = setTimeout(fn, delay);
+        };
+    };
 
     function applyFilters() {
         const params = new URLSearchParams(window.location.search);
         const q = searchInput ? searchInput.value.trim() : '';
-        const type = orderTypeSelect ? orderTypeSelect.value : '';
+        const type = orderType ? orderType.value : '';
         const status = statusFilter ? statusFilter.value : '';
         const entries = entriesSelect ? entriesSelect.value : '';
         const sd = startDate ? startDate.value : '';
@@ -987,24 +696,81 @@ document.addEventListener('DOMContentLoaded', function() {
         params.delete('page');
 
         const base = window.location.pathname;
-        window.location = base + '?' + params.toString();
+        const qs = params.toString();
+        window.location.href = base + (qs ? ('?' + qs) : '');
     }
 
-    if (searchInput) searchInput.addEventListener('keyup', applyFiltersDelayed);
-    if (orderTypeSelect) orderTypeSelect.addEventListener('change', applyFilters);
+    if (searchInput) searchInput.addEventListener('input', debounceSearch(applyFilters, 500));
+    if (orderType) orderType.addEventListener('change', applyFilters);
     if (statusFilter) statusFilter.addEventListener('change', applyFilters);
     if (entriesSelect) entriesSelect.addEventListener('change', applyFilters);
     if (startDate) startDate.addEventListener('change', applyFilters);
     if (endDate) endDate.addEventListener('change', applyFilters);
+})();
+</script>
+<script>
+// Notes form AJAX submit (CSRF-safe)
+(function(){
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
 
-    // Initialize control values from current query params
-    const urlParams = new URLSearchParams(window.location.search);
-    if (searchInput && urlParams.get('q')) searchInput.value = urlParams.get('q');
-    if (orderTypeSelect && urlParams.get('order_type')) orderTypeSelect.value = urlParams.get('order_type');
-    if (statusFilter && urlParams.get('status')) statusFilter.value = urlParams.get('status');
-    if (entriesSelect && urlParams.get('entries')) entriesSelect.value = urlParams.get('entries');
-    if (startDate && urlParams.get('start_date')) startDate.value = urlParams.get('start_date');
-    if (endDate && urlParams.get('end_date')) endDate.value = urlParams.get('end_date');
-});
+    const notesForm = document.getElementById('modal-notes-form');
+    if (!notesForm) return;
+    const notesInput = document.getElementById('modal-notes-input');
+    const notesError = document.getElementById('modal-notes-error');
+    const notesSuccess = document.getElementById('modal-notes-success');
+
+    notesForm.addEventListener('submit', function(e){
+        e.preventDefault();
+        notesError.style.display = 'none';
+        notesSuccess.style.display = 'none';
+        const notes = (notesInput.value || '').trim();
+        if (!notes) { notesError.style.display = ''; return; }
+        const orderId = notesForm.dataset.orderId;
+        if (!orderId) { notesError.textContent = 'Missing order id'; notesError.style.display = ''; return; }
+
+        const ORDER_UPDATE_URL_TEMPLATE = "{% url 'restaurant:order_update_notes' 'ORDER_ID_PLACEHOLDER' %}";
+        const url = ORDER_UPDATE_URL_TEMPLATE.replace('ORDER_ID_PLACEHOLDER', encodeURIComponent(orderId));
+        const csrftoken = getCookie('csrftoken');
+
+        fetch(url, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken
+            },
+            body: JSON.stringify({ notes: notes })
+        }).then(r => r.json())
+        .then(j => {
+            if (j && j.success) {
+                notesSuccess.style.display = '';
+                // update displayed notes
+                const displayed = document.getElementById('modal-special-notes');
+                if (displayed) displayed.textContent = notes;
+                setTimeout(()=>{ notesSuccess.style.display = 'none'; }, 1500);
+            } else {
+                notesError.textContent = (j && j.error) ? j.error : 'Failed to save';
+                notesError.style.display = '';
+            }
+        }).catch(err => {
+            notesError.textContent = 'Network error';
+            notesError.style.display = '';
+            console.error(err);
+        });
+    });
+})();
 </script>
 {% endblock %}

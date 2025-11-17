@@ -1,130 +1,445 @@
 {% extends 'restaurant/base.html' %}
+{% load widget_tweaks %}
 
 {% block title %}Place Takeaway Order{% endblock %}
 
 {% block content %}
-<div class="container-fluid p-3 p-md-4">
+<style>
+    /* Responsive and interactive styles */
+    .place-order-container {
+        background: linear-gradient(135deg, #f5f7fa 0%, #f9fbfd 100%);
+        min-height: 100vh;
+        padding: 1rem;
+    }
+    
+    .order-header {
+        background: linear-gradient(135deg, #17a2b8 0%, #0c5460 100%);
+        color: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 15px rgba(23, 162, 184, 0.2);
+    }
+    
+    .order-header h1 {
+        margin: 0 0 0.5rem 0;
+        font-size: clamp(1.5rem, 5vw, 2.5rem);
+    }
+    
+    .order-badge {
+        background: rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 8px;
+        padding: 1rem 1.5rem;
+        display: inline-block;
+    }
+    
+    .order-form-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        overflow: hidden;
+    }
+    
+    .order-layout {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+        padding: 2rem 1.5rem;
+        min-height: 60vh;
+    }
+    
+    .order-left-panel {
+        border-right: 1px solid #e9ecef;
+        padding-right: 2rem;
+    }
+    
+    .order-right-panel {
+        padding-left: 0;
+    }
+    
+    @media (max-width: 1024px) {
+        .order-layout {
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+            min-height: auto;
+        }
+        
+        .order-left-panel {
+            border-right: none;
+            border-bottom: 1px solid #e9ecef;
+            padding-right: 0;
+            padding-bottom: 1.5rem;
+        }
+    }
+    
+    .form-section {
+        padding: 0;
+        border-bottom: none;
+    }
+    
+    .form-section:last-of-type {
+        border-bottom: none;
+    }
+    
+    .section-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #212529;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .section-title i {
+        color: #17a2b8;
+        font-size: 1.3rem;
+    }
+    
+    .form-label {
+        font-weight: 600;
+        color: #495057;
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .form-control, .form-select {
+        border: 2px solid #e9ecef;
+        transition: all 0.3s ease;
+        border-radius: 6px;
+    }
+    
+    .form-control:focus, .form-select:focus {
+        border-color: #17a2b8;
+        box-shadow: 0 0 0 0.2rem rgba(23, 162, 184, 0.15);
+    }
+    
+    .category-filter {
+        display: flex;
+        gap: 0.5rem;
+        overflow-x: auto;
+        padding: 1rem 0 1rem 0;
+        margin-bottom: 1rem;
+    }
+    
+    .category-btn {
+        padding: 0.5rem 1rem;
+        border: 2px solid #dee2e6;
+        background: white;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        white-space: nowrap;
+        transition: all 0.3s ease;
+    }
+    
+    .category-btn:hover {
+        border-color: #17a2b8;
+        color: #17a2b8;
+    }
+    
+    .category-btn.active {
+        background: #17a2b8;
+        color: white;
+        border-color: #17a2b8;
+    }
+    
+    .items-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .item-card {
+        background: #f8f9fa;
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
+        padding: 1rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .item-card:hover {
+        border-color: #17a2b8;
+        box-shadow: 0 4px 12px rgba(23, 162, 184, 0.15);
+        transform: translateY(-2px);
+    }
+    
+    .item-card.selected {
+        background: #e0f7fa;
+        border-color: #17a2b8;
+    }
+    
+    .item-name {
+        font-weight: 600;
+        color: #212529;
+        margin-bottom: 0.5rem;
+    }
+    
+    .item-price {
+        color: #17a2b8;
+        font-weight: bold;
+        font-size: 1.2rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .item-quick-add {
+        margin-top: auto;
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+    
+    .item-qty-input {
+        width: 60px;
+    }
+    
+    .item-add-btn {
+        flex: 1;
+        padding: 0.4rem;
+        font-size: 0.85rem;
+        border-radius: 4px;
+    }
+    
+    .order-items-table {
+        margin-top: 2rem;
+    }
+    
+    .order-items-table table {
+        font-size: 0.95rem;
+    }
+    
+    .order-item-row {
+        animation: slideIn 0.3s ease;
+    }
+    
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .order-summary {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-top: 2rem;
+        border-left: 4px solid #17a2b8;
+    }
+    
+    .summary-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+        font-size: 0.95rem;
+    }
+    
+    .summary-row.total {
+        font-weight: bold;
+        color: #17a2b8;
+        font-size: 1.2rem;
+        border-top: 2px solid #dee2e6;
+        padding-top: 0.5rem;
+        margin-top: 0.5rem;
+    }
+    
+    .action-buttons {
+        display: flex;
+        gap: 1rem;
+        margin-top: 2rem;
+    }
+    
+    .action-buttons .btn {
+        flex: 1;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        border-radius: 6px;
+        transition: all 0.3s ease;
+    }
+    
+    .action-buttons .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    
+    .toast-notification {
+        position: fixed;
+        top: 5.5rem;
+        right: 1rem;
+        background: white;
+        border-left: 4px solid #28a745;
+        padding: 1rem 1.5rem;
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        animation: slideInRight 0.3s ease;
+        z-index: 9999;
+    }
+    
+    @media (min-width: 992px) {
+        .toast-notification {
+            top: 1rem;
+        }
+    }
+    
+    @keyframes slideInRight {
+        from {
+            opacity: 0;
+            transform: translateX(100px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+    
+    @media (max-width: 768px) {
+        .place-order-container {
+            padding: 0.5rem;
+        }
+        
+        .form-section {
+            padding: 1.5rem 1rem;
+        }
+        
+        .items-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .action-buttons {
+            flex-direction: column;
+        }
+        
+        .action-buttons .btn {
+            width: 100%;
+        }
+    }
+</style>
+
+<div class="place-order-container">
     <!-- Header -->
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3 mb-4">
-        <h1 class="mb-0">Place Takeaway Order</h1>
-        <div class="badge bg-warning p-3">
-            <span class="d-block mb-1"><i class="fas fa-shopping-bag me-2"></i>Takeaway Order</span>
+    <div class="order-header">
+        <h1><i class="fas fa-shopping-bag me-2"></i>Takeaway Order</h1>
+        <div class="order-badge">
+            <div><i class="fas fa-clock me-2"></i><span>Ready for pickup</span></div>
         </div>
     </div>
 
-    <div class="card">
-        <div class="card-body">
-            <form method="post" id="orderForm">
-                {% csrf_token %}
-                
-                <!-- Customer Info -->
-                <div class="row g-3 mb-4">
-                    <div class="col-12 col-md-6">
-                        <div class="mb-3">
-                            <label for="{{ order_form.customer_name.id_for_label }}" class="form-label small fw-semibold">Customer Name</label>
-                            {% if order_form.customer_name %}
-                                <input type="text" name="customer_name" class="form-control" required>
-                            {% endif %}
-                        </div>
+    <div class="order-form-card">
+        <form method="post" id="orderForm">
+            {% csrf_token %}
+            
+            <!-- Hidden formset management fields -->
+            <input type="hidden" name="form-TOTAL_FORMS" id="id_form-TOTAL_FORMS" value="0">
+            <input type="hidden" name="form-INITIAL_FORMS" value="0">
+            <input type="hidden" name="form-MIN_NUM_FORMS" value="0">
+            <input type="hidden" name="form-MAX_NUM_FORMS" value="1000">
+            <input type="hidden" name="order_type" value="takeaway">
+            
+            <div class="order-layout">
+                <!-- LEFT PANEL: Customer Details -->
+                <div class="order-left-panel">
+                    <div class="section-title">
+                        <i class="fas fa-user"></i>Customer Details
                     </div>
-                    <div class="col-12 col-md-6">
-                        <div class="mb-3">
-                            <label for="{{ order_form.customer_phone.id_for_label }}" class="form-label small fw-semibold">Phone Number</label>
-                            {% if order_form.customer_phone %}
-                                <input type="tel" name="customer_phone" class="form-control" required>
-                            {% endif %}
-                        </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Customer Name</label>
+                        <input type="text" name="customer_name" class="form-control" placeholder="e.g., John Smith" required>
                     </div>
-                    <div class="col-12">
-                        <div class="mb-0">
-                            <label for="{{ order_form.special_notes.id_for_label }}" class="form-label small fw-semibold">Special Notes</label>
-                            {% if order_form.special_notes %}
-                                <textarea name="special_notes" class="form-control" rows="3"></textarea>
-                            {% endif %}
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Phone Number</label>
+                        <input type="tel" name="customer_phone" class="form-control" placeholder="e.g., 03001234567" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Special Notes <span class="text-muted">(optional)</span></label>
+                        <textarea name="special_notes" class="form-control" rows="3" placeholder="e.g., No onions, extra spicy..."></textarea>
+                    </div>
+                    
+                    <!-- Order Summary for Mobile/Tablet -->
+                    <div class="order-summary d-lg-none mt-4">
+                        <div class="summary-row">
+                            <span>Items:</span>
+                            <span id="summary-items">0</span>
+                        </div>
+                        <div class="summary-row total">
+                            <span>Total Amount:</span>
+                            <span id="summary-total">Rs.0.00</span>
                         </div>
                     </div>
                 </div>
 
-                <hr class="my-4">
+                <!-- RIGHT PANEL: Menu & Order Items -->
+                <div class="order-right-panel">
+                    <div class="section-title">
+                        <i class="fas fa-utensils"></i>Select Items
+                    </div>
+                    
+                    <!-- Category Filter -->
+                    <div class="category-filter" id="category-filter"></div>
+                    
+                    <!-- Items Grid -->
+                    <div class="items-grid" id="items-grid"></div>
 
-                <!-- Order Items -->
-                <h5 class="mb-3">Order Items</h5>
-                {{ formset.management_form }}
-                
-                <div class="table-responsive mb-4">
-                    <table class="table table-sm">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Item</th>
-                                <th>Quantity</th>
-                                <th class="text-end">Price</th>
-                                <th class="text-end">Subtotal</th>
-                                <th class="text-center">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="order-items">
-                            {% for form in formset %}
-                            <tr class="order-item-row">
-                                <td>
-                                    <select name="form-{{ forloop.counter0 }}-item" 
-                                            class="form-select form-select-sm item-select" 
-                                            required>
-                                        <option value="">Select an item</option>
-                                        {% for menu_item in menu_items %}
-                                            <option value="{{ menu_item.id }}" 
-                                                    data-price="{{ menu_item.price }}">
-                                                {{ menu_item.name }} - Rs.{{ menu_item.price }}
-                                            </option>
-                                        {% endfor %}
-                                    </select>
-                                </td>
-                                <td>
-                                    <input type="number" 
-                                           name="form-{{ forloop.counter0 }}-quantity" 
-                                           value="1" 
-                                           min="1" 
-                                           class="form-control form-control-sm quantity-input" 
-                                           required>
-                                </td>
-                                <td class="text-end item-price">Rs.0.00</td>
-                                <td class="text-end item-subtotal">Rs.0.00</td>
-                                <td class="text-center">
-                                    <button type="button" 
-                                            onclick="removeOrderItem(this)" 
-                                            class="btn btn-sm btn-outline-danger">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                        <tfoot>
-                            <tr class="border-top">
-                                <td colspan="3" class="text-end fw-bold">Total Amount:</td>
-                                <td class="text-end fw-bold" id="total-amount">Rs.0.00</td>
-                                <td></td>
-                            </tr>
-                        </tfoot>
-                    </table>
+                    <!-- Order Items Table -->
+                    <div class="mt-4">
+                        <h6 class="mb-2 fw-bold text-secondary">Order Items</h6>
+                        <div class="table-responsive order-items-table">
+                            <table class="table table-sm">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Item</th>
+                                        <th style="width: 70px;">Qty</th>
+                                        <th class="text-end" style="width: 80px;">Price</th>
+                                        <th class="text-end" style="width: 100px;">Subtotal</th>
+                                        <th style="width: 45px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="order-items"></tbody>
+                                <tfoot>
+                                    <tr class="fw-bold border-top table-light">
+                                        <td colspan="3" class="text-end">Total:</td>
+                                        <td class="text-end" id="total-amount">Rs.0.00</td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Order Summary for Desktop -->
+                    <div class="order-summary d-none d-lg-block mt-4">
+                        <div class="summary-row">
+                            <span>Items:</span>
+                            <span id="summary-items-desktop">0</span>
+                        </div>
+                        <div class="summary-row total">
+                            <span>Total Amount:</span>
+                            <span id="summary-total-desktop">Rs.0.00</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Action Buttons -->
-            <div class="d-flex flex-column flex-md-row gap-3 justify-content-between align-items-start align-items-md-center">
-                <button type="button" 
-                        onclick="addOrderItem()" 
-                        class="btn btn-success">
-                    <i class="fas fa-plus me-2"></i>Add Item
-                </button>
-                
-                <div class="d-flex flex-column flex-sm-row gap-2">
-                    <a href="{% url 'restaurant:menu' %}" 
-                       class="btn btn-secondary">
-                        Cancel
+            <!-- Action Buttons - Full Width at Bottom -->
+            <div style="padding: 2rem 1.5rem; border-top: 1px solid #e9ecef;">
+                <div class="action-buttons">
+                    <a href="{% url 'restaurant:menu' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Cancel
                     </a>
-                    <button type="submit" 
-                            class="btn btn-primary">
-                        Place Order
+                    <button type="submit" class="btn btn-info btn-lg">
+                        <i class="fas fa-check me-2"></i>Place Order
                     </button>
                 </div>
             </div>
@@ -133,111 +448,262 @@
 </div>
 
 <script>
-    let totalForms = parseInt(document.getElementById('id_form-TOTAL_FORMS').value);
+    // Pass menu items as JSON for safe JS usage
+    const menuItems = JSON.parse('{{ menu_items_json|safe }}');
+    // @ts-check
 
-    function addOrderItem() {
+    let orderData = {};
+    let totalForms = 0;
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', () => {
+        renderCategories();
+        renderItemsGrid();
+        setupCategoryFilters();
+    });
+
+    function renderCategories() {
+        const categories = [...new Set(menuItems.map(item => item['category__name']))];
+        const filterContainer = document.getElementById('category-filter');
+        
+        // All button
+        const allBtn = document.createElement('button');
+        allBtn.type = 'button';
+        allBtn.className = 'category-btn active';
+        allBtn.textContent = 'All Items';
+        allBtn.dataset.category = 'all';
+        allBtn.onclick = (e) => {
+            e.preventDefault();
+            document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
+            allBtn.classList.add('active');
+            renderItemsGrid('all');
+        };
+        filterContainer.appendChild(allBtn);
+        
+        // Category buttons
+        categories.forEach(cat => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'category-btn';
+            btn.textContent = cat;
+            btn.dataset.category = cat;
+            btn.onclick = (e) => {
+                e.preventDefault();
+                document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                renderItemsGrid(cat);
+            };
+            filterContainer.appendChild(btn);
+        });
+    }
+
+    function renderItemsGrid(categoryFilter = 'all') {
+        const grid = document.getElementById('items-grid');
+        grid.innerHTML = '';
+        
+        const filtered = categoryFilter === 'all' 
+            ? menuItems 
+            : menuItems.filter(item => item['category__name'] === categoryFilter);
+        
+        filtered.forEach(item => {
+            const card = document.createElement('div');
+            card.className = `item-card ${orderData[item.id] ? 'selected' : ''}`;
+            card.innerHTML = `
+                <div class="item-name">${item.name}</div>
+                <div class="item-price">Rs.${parseFloat(item.price).toFixed(2)}</div>
+                <div class="small text-muted mb-2">${item['category__name']}</div>
+                <div class="item-quick-add">
+                    <input type="number" class="form-control form-control-sm item-qty-input" value="${orderData[item.id] ? orderData[item.id].qty : 1}" min="1">
+                    <button type="button" class="btn btn-info item-add-btn" onclick="quickAddItem(event, ${item.id}, '${item.name}', ${item.price})">
+                        <i class="fas fa-plus"></i> Add
+                    </button>
+                </div>
+            `;
+            grid.appendChild(card);
+        });
+    }
+
+    function quickAddItem(e, itemId, itemName, price) {
+        e.preventDefault();
+        const card = e.target.closest('.item-card');
+        const qty = parseInt(card.querySelector('.item-qty-input').value) || 1;
+        
+        if (orderData[itemId]) {
+            orderData[itemId].qty += qty;
+        } else {
+            orderData[itemId] = { name: itemName, price, qty, category: '' };
+        }
+        
+        renderItemsGrid();
+        addToOrderTable(itemId, itemName, price, qty);
+        calculateTotal();
+        showNotification(`${itemName} added to order!`);
+    }
+
+    function addToOrderTable(itemId, itemName, price, qty) {
+        // Check if item already in table
+        const existingRow = document.querySelector(`[data-item-id="${itemId}"]`);
+        if (existingRow) {
+            const qtyInput = existingRow.querySelector('.quantity-input');
+            qtyInput.value = parseInt(qtyInput.value) + qty;
+            updateRowPrices(existingRow);
+            return;
+        }
+        
         const tbody = document.getElementById('order-items');
         const tr = document.createElement('tr');
         tr.className = 'order-item-row';
+        tr.dataset.itemId = itemId;
         
         tr.innerHTML = `
-            <td>
-                <select name="form-${totalForms}-item" class="form-select form-select-sm item-select" required>
-                    <option value="">Select an item</option>
-                    {% for menu_item in menu_items %}
-                        <option value="{{ menu_item.id }}" data-price="{{ menu_item.price }}">
-                            {{ menu_item.name }} - Rs.{{ menu_item.price }}
-                        </option>
-                    {% endfor %}
-                </select>
-            </td>
+            <td><strong>${itemName}</strong></td>
             <td>
                 <input type="number" 
                        name="form-${totalForms}-quantity" 
-                       value="1" 
+                       value="${qty}" 
                        min="1" 
                        class="form-control form-control-sm quantity-input"
                        required>
+                <input type="hidden" name="form-${totalForms}-item" value="${itemId}">
             </td>
-            <td class="text-end item-price">Rs.0.00</td>
-            <td class="text-end item-subtotal">Rs.0.00</td>
+            <td class="text-end item-price">Rs.${price.toFixed(2)}</td>
+            <td class="text-end item-subtotal">Rs.${(price * qty).toFixed(2)}</td>
             <td class="text-center">
                 <button type="button" 
                         onclick="removeOrderItem(this)" 
-                        class="btn btn-sm btn-outline-danger">
+                        class="btn btn-sm btn-outline-danger"
+                        title="Remove">
                     <i class="fas fa-trash"></i>
                 </button>
             </td>
         `;
         
         tbody.appendChild(tr);
-        totalForms += 1;
-        document.getElementById('id_form-TOTAL_FORMS').value = totalForms;
+        totalForms++;
+        updateFormMeta();
         
-        const newSelect = tr.querySelector('.item-select');
-        const newQuantity = tr.querySelector('.quantity-input');
-        newSelect.addEventListener('change', () => updateRowPrices(tr));
-        newQuantity.addEventListener('input', () => updateRowPrices(tr));
+        const qtyInput = tr.querySelector('.quantity-input');
+        qtyInput.addEventListener('input', () => updateRowPrices(tr));
     }
 
     function removeOrderItem(button) {
         const row = button.closest('.order-item-row');
-        row.remove();
-        updateFormIndexes();
-        calculateTotal();
+        const itemId = row.dataset.itemId;
+        const itemName = row.querySelector('strong').textContent;
+        
+        delete orderData[itemId];
+        row.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => {
+            row.remove();
+            updateFormIndexes();
+            calculateTotal();
+            renderItemsGrid();
+            showNotification(`${itemName} removed from order!`);
+        }, 300);
     }
 
     function updateFormIndexes() {
         const rows = document.querySelectorAll('.order-item-row');
         rows.forEach((row, index) => {
-            row.querySelector('.item-select').name = `form-${index}-item`;
-            row.querySelector('.quantity-input').name = `form-${index}-quantity`;
+            row.querySelector('input[name^="form-"][name$="-quantity"]').name = `form-${index}-quantity`;
+            row.querySelector('input[name^="form-"][name$="-item"]').name = `form-${index}-item`;
         });
         totalForms = rows.length;
+        updateFormMeta();
+    }
+
+    function updateFormMeta() {
         document.getElementById('id_form-TOTAL_FORMS').value = totalForms;
     }
 
     function updateRowPrices(row) {
-        const select = row.querySelector('.item-select');
         const quantityInput = row.querySelector('.quantity-input');
-        const priceCell = row.querySelector('.item-price');
-        const subtotalCell = row.querySelector('.item-subtotal');
+        const itemId = row.dataset.itemId;
+        const item = menuItems.find(m => m.id === parseInt(itemId));
         
-        const selectedOption = select.selectedOptions[0];
-        const price = selectedOption ? parseFloat(selectedOption.dataset.price) : 0;
+        if (!item) return;
+        
         const quantity = parseInt(quantityInput.value) || 0;
+        const subtotal = item.price * quantity;
         
-        const subtotal = price * quantity;
+        row.querySelector('.item-price').textContent = `Rs.${item.price.toFixed(2)}`;
+        row.querySelector('.item-subtotal').textContent = `Rs.${subtotal.toFixed(2)}`;
         
-        priceCell.textContent = `Rs.${price.toFixed(2)}`;
-        subtotalCell.textContent = `Rs.${subtotal.toFixed(2)}`;
+        if (orderData[itemId]) {
+            orderData[itemId].qty = quantity;
+        }
         
         calculateTotal();
     }
 
     function calculateTotal() {
         let total = 0;
-        document.querySelectorAll('.item-subtotal').forEach(cell => {
-            const subtotal = parseFloat(cell.textContent.replace('Rs.', '')) || 0;
+        let itemCount = 0;
+        document.querySelectorAll('.order-item-row').forEach(row => {
+            const subtotal = parseFloat(row.querySelector('.item-subtotal').textContent.replace('Rs.', '')) || 0;
+            const qty = parseInt(row.querySelector('.quantity-input').value) || 0;
             total += subtotal;
+            itemCount += qty;
         });
+        
         document.getElementById('total-amount').textContent = `Rs.${total.toFixed(2)}`;
+        // Update mobile summary
+        const summaryItems = document.getElementById('summary-items');
+        const summaryTotal = document.getElementById('summary-total');
+        if (summaryItems) summaryItems.textContent = itemCount;
+        if (summaryTotal) summaryTotal.textContent = `Rs.${total.toFixed(2)}`;
+        
+        // Update desktop summary
+        const summaryItemsDesktop = document.getElementById('summary-items-desktop');
+        const summaryTotalDesktop = document.getElementById('summary-total-desktop');
+        if (summaryItemsDesktop) summaryItemsDesktop.textContent = itemCount;
+        if (summaryTotalDesktop) summaryTotalDesktop.textContent = `Rs.${total.toFixed(2)}`;
     }
 
+    function showNotification(message) {
+        const notif = document.createElement('div');
+        notif.className = 'toast-notification';
+        notif.innerHTML = `<i class="fas fa-check-circle me-2" style="color:#28a745;"></i>${message}`;
+        document.body.appendChild(notif);
+        
+        setTimeout(() => {
+            notif.style.animation = 'slideOutRight 0.3s ease';
+            setTimeout(() => notif.remove(), 300);
+        }, 2000);
+    }
+
+    function setupCategoryFilters() {
+        // Already handled in renderCategories
+    }
+
+    // Add form submission handler
     document.addEventListener('DOMContentLoaded', () => {
-        const rows = document.querySelectorAll('.order-item-row');
-        rows.forEach(row => {
-            const select = row.querySelector('.item-select');
-            const quantity = row.querySelector('.quantity-input');
-            select.addEventListener('change', () => updateRowPrices(row));
-            quantity.addEventListener('input', () => updateRowPrices(row));
+        const form = document.getElementById('orderForm');
+        form.addEventListener('submit', (e) => {
+            // Check if order has items
+            const orderRows = document.querySelectorAll('.order-item-row');
+            if (orderRows.length === 0) {
+                e.preventDefault();
+                alert('Please add at least one item to the order before placing it.');
+                return;
+            }
+            
+            // Ensure customer fields are filled
+            const customerName = form.querySelector('input[name="customer_name"]').value.trim();
+            const customerPhone = form.querySelector('input[name="customer_phone"]').value.trim();
+            
+            if (!customerName || !customerPhone) {
+                e.preventDefault();
+                alert('Please fill in customer name and phone number.');
+                return;
+            }
+            
+            // Update TOTAL_FORMS with actual row count
+            const totalFormsInput = document.getElementById('id_form-TOTAL_FORMS');
+            totalFormsInput.value = orderRows.length;
+            
+            // Form is valid, allow submission
         });
-        
-        if (rows.length === 0) {
-            addOrderItem();
-        }
-        
-        rows.forEach(row => updateRowPrices(row));
     });
 </script>
 {% endblock %}

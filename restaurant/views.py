@@ -5,7 +5,7 @@ from django.http import JsonResponse, HttpResponse
 from django.urls import reverse_lazy, reverse
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
 from django.contrib.auth.mixins import LoginRequiredMixin
-from .models import Table, Category, MenuItem, Order, OrderItem, Payment, OrderHistory
+from .models import Table, Category, MenuItem, Order, OrderItem, Payment, OrderHistory, OrderHistoryPayment
 from .forms import MenuItemForm, CategoryForm, OrderForm, OrderItemForm, PaymentForm
 import json
 from django.db.models import Sum
@@ -113,7 +113,13 @@ def place_order(request, table_id):
     table = get_object_or_404(Table, id=table_id)
     OrderItemFormSet = modelformset_factory(OrderItem, form=OrderItemForm, extra=1)
     # Show only available items from active categories
-    menu_items = MenuItem.objects.filter(is_available=True, category__is_active=True)
+    import json
+    menu_items_qs = MenuItem.objects.filter(is_available=True, category__is_active=True).select_related('category')
+    menu_items = list(menu_items_qs.values('id', 'name', 'price', 'category_id', 'category__name'))
+    for item in menu_items:
+        if isinstance(item['price'], Decimal):
+            item['price'] = float(item['price'])
+    menu_items_json = json.dumps(menu_items)
 
     if request.method == 'POST':
         order_form = OrderForm(request.POST)
@@ -155,7 +161,7 @@ def place_order(request, table_id):
         'table': table,
         'order_form': order_form,
         'formset': formset,
-        'menu_items': menu_items,
+        'menu_items_json': menu_items_json,
     })
 
 
@@ -164,7 +170,14 @@ def place_order(request, table_id):
 def place_order_takeaway(request):
     OrderItemFormSet = modelformset_factory(OrderItem, form=OrderItemForm, extra=1)
     # Show only available items from active categories
-    menu_items = MenuItem.objects.filter(is_available=True, category__is_active=True)
+    import json
+    menu_items_qs = MenuItem.objects.filter(is_available=True, category__is_active=True).select_related('category')
+    menu_items = list(menu_items_qs.values('id', 'name', 'price', 'category_id', 'category__name'))
+    # Convert Decimal price to float for JSON serialization
+    for item in menu_items:
+        if isinstance(item['price'], Decimal):
+            item['price'] = float(item['price'])
+    menu_items_json = json.dumps(menu_items)
 
     if request.method == 'POST':
         order_form = OrderForm(request.POST)
@@ -204,14 +217,20 @@ def place_order_takeaway(request):
     return render(request, 'restaurant/place_order_takeaway.html', {
         'order_form': order_form,
         'formset': formset,
-        'menu_items': menu_items,
+        'menu_items_json': menu_items_json,
     })
 
 @login_required
 def place_order_delivery(request):
     OrderItemFormSet = modelformset_factory(OrderItem, form=OrderItemForm, extra=1)
     # Show only available items from active categories
-    menu_items = MenuItem.objects.filter(is_available=True, category__is_active=True)
+    import json
+    menu_items_qs = MenuItem.objects.filter(is_available=True, category__is_active=True).select_related('category')
+    menu_items = list(menu_items_qs.values('id', 'name', 'price', 'category_id', 'category__name'))
+    for item in menu_items:
+        if isinstance(item['price'], Decimal):
+            item['price'] = float(item['price'])
+    menu_items_json = json.dumps(menu_items)
 
     if request.method == 'POST':
         order_form = OrderForm(request.POST)
@@ -251,7 +270,7 @@ def place_order_delivery(request):
     return render(request, 'restaurant/place_order_delivery.html', {
         'order_form': order_form,
         'formset': formset,
-        'menu_items': menu_items,
+        'menu_items_json': menu_items_json,
     })
 
 @login_required
@@ -804,6 +823,19 @@ class TableListView(LoginRequiredMixin, ListView):
     template_name = 'restaurant/table_list.html'
     context_object_name = 'tables'
 
+    def get_queryset(self):
+        # Annotate each table with occupied status based on pending orders
+        tables = Table.objects.all()
+        table_ids_with_pending_orders = set(
+            Order.objects.filter(
+                table__isnull=False,
+                status__in=['pending', 'preparing', 'ready', 'served']
+            ).values_list('table_id', flat=True)
+        )
+        for table in tables:
+            table.is_occupied = table.id in table_ids_with_pending_orders
+        return tables
+
 class TableCreateView(LoginRequiredMixin, CreateView):
     model = Table
     form_class = TableForm
@@ -896,8 +928,250 @@ def transaction_history(request):
         'orders': orders,
         'payment_method_choices': Payment.PAYMENT_METHOD_CHOICES,
         'params': params_str,
+        'q': q,
+        'start_date': start_date or '',
+        'end_date': end_date or '',
+        'order_type': order_type or '',
+        'status': status or '',
+        'entries': str(entries),
     }
     return render(request, 'restaurant/transaction_history.html', context)
+
+
+@login_required
+def export_orders_csv(request):
+    """Export filtered OrderHistory rows as CSV (opens in Excel)."""
+    orders_qs = OrderHistory.objects.all().order_by('-created_at')
+
+    # Apply same filters as transaction_history
+    q = request.GET.get('q', '').strip()
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    order_type = request.GET.get('order_type')
+    status = request.GET.get('status')
+
+    if q:
+        from django.db.models import Q
+        orders_qs = orders_qs.filter(
+            Q(order_id__icontains=q) | Q(customer_name__icontains=q) | Q(customer_phone__icontains=q)
+        )
+
+    from datetime import datetime
+    if start_date:
+        try:
+            sd = datetime.strptime(start_date, '%Y-%m-%d').date()
+            orders_qs = orders_qs.filter(created_at__date__gte=sd)
+        except Exception:
+            pass
+    if end_date:
+        try:
+            ed = datetime.strptime(end_date, '%Y-%m-%d').date()
+            orders_qs = orders_qs.filter(created_at__date__lte=ed)
+        except Exception:
+            pass
+
+    if order_type:
+        orders_qs = orders_qs.filter(order_type=order_type)
+    if status:
+        orders_qs = orders_qs.filter(status=status)
+
+    # Prepare CSV
+    import csv
+    from django.utils.encoding import smart_str
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="transaction_history.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow(['Order ID', 'Customer', 'Phone', 'Type', 'Table', 'Status', 'Total Amount', 'Created At', 'Updated At', 'Notes'])
+    for o in orders_qs:
+        table_num = o.table.number if getattr(o, 'table', None) else ''
+        writer.writerow([
+            smart_str(o.order_id),
+            smart_str(o.customer_name),
+            smart_str(o.customer_phone),
+            smart_str(o.order_type),
+            smart_str(table_num),
+            smart_str(o.status),
+            smart_str(o.total_amount),
+            o.created_at.isoformat() if o.created_at else '',
+            o.updated_at.isoformat() if o.updated_at else '',
+            smart_str(o.special_notes or '')
+        ])
+
+    return response
+
+
+@login_required
+def export_orders_pdf(request):
+    """Export filtered OrderHistory rows as a professionally formatted PDF with tables.
+    Requires `reportlab` package. If not available, returns 501 with installation hint.
+    """
+    orders_qs = OrderHistory.objects.all().order_by('-created_at')
+
+    # Reuse same filtering logic
+    q = request.GET.get('q', '').strip()
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    order_type = request.GET.get('order_type')
+    status = request.GET.get('status')
+
+    if q:
+        from django.db.models import Q
+        orders_qs = orders_qs.filter(
+            Q(order_id__icontains=q) | Q(customer_name__icontains=q) | Q(customer_phone__icontains=q)
+        )
+
+    from datetime import datetime
+    if start_date:
+        try:
+            sd = datetime.strptime(start_date, '%Y-%m-%d').date()
+            orders_qs = orders_qs.filter(created_at__date__gte=sd)
+        except Exception:
+            pass
+    if end_date:
+        try:
+            ed = datetime.strptime(end_date, '%Y-%m-%d').date()
+            orders_qs = orders_qs.filter(created_at__date__lte=ed)
+        except Exception:
+            pass
+
+    if order_type:
+        orders_qs = orders_qs.filter(order_type=order_type)
+    if status:
+        orders_qs = orders_qs.filter(status=status)
+
+    try:
+        from reportlab.lib.pagesizes import letter, A4
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+        from reportlab.lib import colors
+        from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+    except Exception:
+        return HttpResponse(
+            'PDF export requires the `reportlab` package. Install with: pip install reportlab',
+            status=501,
+            content_type='text/plain'
+        )
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=0.5*inch, leftMargin=0.5*inch,
+                            topMargin=0.75*inch, bottomMargin=0.75*inch)
+    
+    # Container for PDF elements
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    # Title style
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=18,
+        textColor=colors.HexColor('#0d6efd'),
+        spaceAfter=6,
+        alignment=TA_CENTER,
+        fontName='Helvetica-Bold'
+    )
+    
+    # Header style
+    header_style = ParagraphStyle(
+        'CustomHeader',
+        parent=styles['Normal'],
+        fontSize=10,
+        textColor=colors.white,
+        alignment=TA_CENTER,
+        fontName='Helvetica-Bold'
+    )
+    
+    # Data style
+    data_style = ParagraphStyle(
+        'DataStyle',
+        parent=styles['Normal'],
+        fontSize=8,
+        alignment=TA_LEFT
+    )
+    
+    # Add title
+    elements.append(Paragraph('Transaction History Report', title_style))
+    elements.append(Spacer(1, 0.15*inch))
+    
+    # Add filter info if any
+    filter_info = []
+    if q:
+        filter_info.append(f"<b>Search:</b> {q}")
+    if start_date or end_date:
+        date_range = f"{start_date or 'N/A'} to {end_date or 'N/A'}"
+        filter_info.append(f"<b>Date Range:</b> {date_range}")
+    if order_type:
+        filter_info.append(f"<b>Order Type:</b> {order_type}")
+    if status:
+        filter_info.append(f"<b>Status:</b> {status}")
+    
+    if filter_info:
+        filter_text = " | ".join(filter_info)
+        elements.append(Paragraph(f"<i>{filter_text}</i>", data_style))
+        elements.append(Spacer(1, 0.1*inch))
+    
+    # Prepare table data
+    table_data = [
+        ['Order ID', 'Customer', 'Phone', 'Type', 'Table', 'Status', 'Amount', 'Created At']
+    ]
+    
+    for o in orders_qs:
+        table_num = str(o.table.number) if getattr(o, 'table', None) else '-'
+        created_str = o.created_at.strftime('%Y-%m-%d %H:%M') if o.created_at else ''
+        table_data.append([
+            str(o.order_id),
+            str(o.customer_name or ''),
+            str(o.customer_phone or ''),
+            str(o.order_type or ''),
+            table_num,
+            str(o.status or ''),
+            f"Rs.{o.total_amount}",
+            created_str
+        ])
+    
+    # Create table with styling
+    table = Table(table_data, colWidths=[1.0*inch, 1.2*inch, 0.9*inch, 0.7*inch, 0.5*inch, 0.8*inch, 0.7*inch, 1.0*inch])
+    table.setStyle(TableStyle([
+        # Header row style
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0d6efd')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 9),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
+        ('GRID', (0, 0), (-1, -1), 1, colors.lightgrey),
+        ('FONTSIZE', (0, 1), (-1, -1), 8),
+        ('ALIGN', (0, 1), (-1, -1), 'LEFT'),
+        ('ALIGN', (-2, 1), (-1, -1), 'RIGHT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 5),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+    ]))
+    
+    elements.append(table)
+    elements.append(Spacer(1, 0.2*inch))
+    
+    # Footer
+    from datetime import datetime as dt
+    footer_text = f"<i>Report generated on {dt.now().strftime('%Y-%m-%d %H:%M:%S')} | Total records: {len(table_data) - 1}</i>"
+    footer_style = ParagraphStyle(
+        'Footer',
+        parent=styles['Normal'],
+        fontSize=7,
+        textColor=colors.grey,
+        alignment=TA_CENTER
+    )
+    elements.append(Paragraph(footer_text, footer_style))
+    
+    # Build PDF
+    doc.build(elements)
+    buffer.seek(0)
+    return HttpResponse(buffer, content_type='application/pdf', headers={'Content-Disposition': 'attachment; filename="transaction_history.pdf"'})
 
 
 class MenuItemUpdateView(LoginRequiredMixin, UpdateView):
