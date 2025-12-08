@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'home',  # Add your app here
+    'accounts',
     'restaurant',
     'widget_tweaks',  # Add your app here
 ]
@@ -54,6 +55,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'accounts.context_processors.user_permissions',
                 'restaurant.context_processors.add_valid_table_id',  # Add this line
             ],
         },
@@ -116,6 +118,9 @@ STATIC_URL = '/static/'
 LOGIN_REDIRECT_URL = '/accounts/profile/'# Default primary key field type
 # https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Use custom user model from accounts app
+AUTH_USER_MODEL = 'accounts.User'
 
 
 

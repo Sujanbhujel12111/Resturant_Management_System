@@ -247,9 +247,26 @@
                         <p id="modal-completed-date" class="fw-semibold"></p>
                     </div>
                     <div class="col-12">
+                        <p class="text-secondary small">Status History:</p>
+                        <div id="modal-status-logs" class="fw-semibold small text-muted"></div>
+                    </div>
+                    <div class="col-12">
                         <p class="text-secondary small">Special Notes:</p>
                         <p id="modal-special-notes" class="fw-semibold"></p>
                     </div>
+                </div>
+
+                <!-- Revert Order Action -->
+                <div class="pt-4 mt-4 border-top">
+                    <h3 class="fw-bold h5 mb-3">Order Actions</h3>
+                    <form id="modal-revert-form" method="POST" class="d-inline">
+                        {% csrf_token %}
+                        <button type="submit" id="modal-revert-btn" class="btn btn-warning btn-sm" 
+                                title="Revert this order back to active orders. It will no longer appear in history.">
+                            <i class="fas fa-undo me-2"></i>Undo / Revert Order
+                        </button>
+                        <small class="text-muted d-block mt-2">Click to restore this order back to active orders.</small>
+                    </form>
                 </div>
             </div>
     </div>
@@ -628,9 +645,32 @@
                     created.textContent = data.created_at ? new Date(data.created_at).toLocaleString() : '';
                     completed.textContent = data.updated_at ? new Date(data.updated_at).toLocaleString() : '';
 
+                    // Render status logs (if provided)
+                    const statusLogsEl = document.getElementById('modal-status-logs');
+                    if (statusLogsEl) {
+                        statusLogsEl.innerHTML = '';
+                        if (data.status_logs && data.status_logs.length) {
+                            data.status_logs.forEach(sl => {
+                                const div = document.createElement('div');
+                                const who = sl.changed_by || 'System';
+                                const prev = sl.previous_status || '-';
+                                const nw = sl.new_status || '';
+                                const ts = sl.timestamp ? new Date(sl.timestamp).toLocaleString() : '';
+                                div.textContent = `${prev} → ${nw} by ${who} @ ${ts}`;
+                                statusLogsEl.appendChild(div);
+                            });
+                        } else {
+                            statusLogsEl.textContent = 'No status history available';
+                        }
+                    }
+
                     // set notes form target (store current order id/url)
                     const notesForm = document.getElementById('modal-notes-form');
                     notesForm.dataset.orderId = data.order_id;
+
+                    // set revert form target (store current order id)
+                    const revertForm = document.getElementById('modal-revert-form');
+                    if (revertForm) revertForm.dataset.orderId = data.order_id;
 
                 } catch (e) {
                     console.error('Error populating modal', e);
@@ -771,6 +811,58 @@
             console.error(err);
         });
     });
+})();
+</script>
+<script>
+// Revert form submit handler (form submission to revert order)
+(function(){
+    const revertForm = document.getElementById('modal-revert-form');
+    const revertBtn = document.getElementById('modal-revert-btn');
+    if (!revertForm || !revertBtn) return;
+
+    revertForm.addEventListener('submit', function(e){
+        e.preventDefault();
+        const orderId = revertForm.dataset.orderId || '';
+        if (!orderId) {
+            alert('Order ID not found. Please refresh and try again.');
+            return;
+        }
+
+        // Ask for confirmation before reverting
+        const confirmed = confirm(`Are you sure you want to revert order ${orderId} back to active orders?\n\nThis order will no longer appear in the history.`);
+        if (!confirmed) return;
+
+        // Submit the form with revert URL
+        const REVERT_URL_TEMPLATE = "{% url 'restaurant:revert_order' 'ORDER_ID_PLACEHOLDER' %}";
+        const revertUrl = REVERT_URL_TEMPLATE.replace('ORDER_ID_PLACEHOLDER', encodeURIComponent(orderId));
+        revertForm.action = revertUrl;
+        revertForm.submit();
+    });
+
+    // Store the order ID when modal is opened
+    const origOpenBtn = document.querySelector('.order-details-btn');
+    if (origOpenBtn) {
+        document.addEventListener('click', function(e){
+            const btn = e.target.closest('.order-details-btn');
+            if (!btn) return;
+            // After modal data loads, we'll set revertForm.dataset.orderId via modal population
+        });
+    }
+
+    // Update the modal population code to also set revert form data
+    // (Hook into the existing fetch-then-populate flow by updating data-order-id)
+})();
+</script>
+<script>
+// Update modal revert form data when modal is populated with order data
+(function(){
+    const origPopulationCode = `
+        // set notes form target (store current order id/url)
+        const notesForm = document.getElementById('modal-notes-form');
+        notesForm.dataset.orderId = data.order_id;
+    `;
+    // The actual update is done inline in the modal population code above
+    // We'll adjust it to also set revert form data
 })();
 </script>
 {% endblock %}

@@ -1,22 +1,17 @@
-import os
-import django
-
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'restaurant_project.settings')
-django.setup()
-
 from restaurant.models import Order
-from decimal import Decimal
 
-print("Orders with NO payments (cancel form should show):")
-for order in Order.objects.all()[:10]:
-    payments = order.payments.all()
-    settled = sum((Decimal(p.amount) for p in payments), Decimal('0'))
-    if settled == 0:
-        print(f"  Order {order.order_id} ({order.id}): {len(payments)} payments, should show cancel form ✓")
+orders = Order.objects.all().order_by('created_at')
+print(f'Total: {orders.count()}')
+print(f'\nFirst 10 orders:')
+for i, o in enumerate(orders[:10]):
+    print(f'{i}: {o.created_at} -> date {o.created_at.date()}')
 
-print("\nOrders with payments (warning shown instead):")
-for order in Order.objects.all()[:10]:
-    payments = order.payments.all()
-    settled = sum((Decimal(p.amount) for p in payments), Decimal('0'))
+dates = set(o.created_at.date() for o in orders)
+print(f'\nUnique dates: {len(dates)}')
+if len(dates) > 1:
+    sorted_dates = sorted(dates)
+    print(f'Date range: {sorted_dates[0]} to {sorted_dates[-1]}')
+else:
+    print(f'All orders on same date: {list(dates)[0]}')
     if settled > 0:
         print(f"  Order {order.order_id} ({order.id}): Rs.{settled}, warning shown")

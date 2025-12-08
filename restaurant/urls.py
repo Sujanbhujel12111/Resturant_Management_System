@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, include
 from . import views
 from django.contrib.auth import views as auth_views
 
@@ -51,12 +51,14 @@ urlpatterns = [
 
 
     path('order/<str:order_id>/add_item/', views.add_order_item, name='add_order_item'),
+    path('order/<str:order_id>/update_address/', views.update_order_address, name='update_order_address'),
     path('order/<str:order_id>/remove_item/<int:item_id>/', views.remove_order_item, name='remove_order_item'),
     
     # Payment Processing
     path('order/process_payment/<int:pk>/', views.process_payment, name='process_payment'),
     path('payment/<int:pk>/edit/', views.edit_payment, name='edit_payment'),
     path('payment/<int:pk>/delete/', views.delete_payment, name='delete_payment'),
+    path('add_payment/<int:order_id>/', views.add_payment, name='add_payment'),
     
     # Different Order Types
     path('place_order_takeaway/', views.place_order_takeaway, name='place_order_takeaway'),
@@ -67,9 +69,13 @@ urlpatterns = [
     path('transaction_history/export/csv/', views.export_orders_csv, name='export_orders_csv'),
     path('transaction_history/export/pdf/', views.export_orders_pdf, name='export_orders_pdf'),
     path('order_history_details/<str:order_id>/', views.order_history_details, name='order_history_details'),
+    path('order/<str:order_id>/revert/', views.revert_order, name='revert_order'),
     path('order_update_notes/<str:order_id>/', views.order_update_notes, name='order_update_notes'),
     # serve a favicon shortcut to avoid 404 in dev
     path('favicon.ico', lambda request: __import__('django.shortcuts').shortcuts.redirect('/static/favicon.svg')),
+    
+    # ML / Forecasting
+    path('ml/', include('restaurant.ml.urls')),
 
 
 

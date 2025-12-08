@@ -1,3 +1,27 @@
+# Restore missing process_payment view
+from django.shortcuts import get_object_or_404, render, redirect
+from .models import Order, Payment
+from .forms import PaymentForm
+from django.contrib.auth.decorators import login_required
+
+@login_required
+def process_payment(request, pk):
+    order = get_object_or_404(Order, pk=pk)
+    if request.method == 'POST':
+        form = PaymentForm(request.POST)
+        if form.is_valid():
+            payment = form.save(commit=False)
+            payment.order = order
+            payment.edited_by = request.user
+            payment.save()
+            return redirect('restaurant:order_details', order_id=order.order_id)
+    else:
+        form = PaymentForm()
+    return render(request, 'restaurant/process_payment.html', {
+        'form': form,
+        'order': order,
+        'payment_methods': Payment.PAYMENT_METHOD_CHOICES
+    })
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.forms import modelformset_factory
@@ -19,6 +43,7 @@ from django.db import models
 from django.contrib.auth import views as auth_views
 import qrcode
 from io import BytesIO
+import logging
 
 
 class LoginView(auth_views.LoginView):
@@ -112,7 +137,6 @@ def kitchen_orders_api(request):
 def place_order(request, table_id):
     table = get_object_or_404(Table, id=table_id)
     OrderItemFormSet = modelformset_factory(OrderItem, form=OrderItemForm, extra=1)
-    # Show only available items from active categories
     import json
     menu_items_qs = MenuItem.objects.filter(is_available=True, category__is_active=True).select_related('category')
     menu_items = list(menu_items_qs.values('id', 'name', 'price', 'category_id', 'category__name'))
@@ -120,7 +144,6 @@ def place_order(request, table_id):
         if isinstance(item['price'], Decimal):
             item['price'] = float(item['price'])
     menu_items_json = json.dumps(menu_items)
-
     if request.method == 'POST':
         order_form = OrderForm(request.POST)
         formset = OrderItemFormSet(request.POST, queryset=OrderItem.objects.none())
@@ -128,42 +151,30 @@ def place_order(request, table_id):
         if order_form.is_valid() and formset.is_valid():
             order = order_form.save(commit=False)
             order.table = table
+            order.created_by = request.user
             order.status = 'pending'
-            total_amount = 0
-
-            # First save the order
             order.save()
 
-            # Then save order items and calculate total
             for form in formset:
-                if form.cleaned_data:  # Check if form has data
+                if form.cleaned_data:
                     order_item = form.save(commit=False)
                     menu_item = MenuItem.objects.get(id=order_item.item.id)
                     order_item.price = menu_item.price
                     order_item.order = order
                     order_item.save()
-                    
-                    # Calculate item total and add to order total
-                    item_total = order_item.price * order_item.quantity
-                    total_amount += item_total
-
-            # Update order with calculated total
+            total_amount = sum(item.price * item.quantity for item in order.items.all())
             order.total_amount = total_amount
             order.save()
-
             return redirect('restaurant:order_list')
-
-    else:
-        order_form = OrderForm()
-        formset = OrderItemFormSet(queryset=OrderItem.objects.none())
-
+    # Handle GET and all other cases
+    order_form = OrderForm()
+    formset = OrderItemFormSet(queryset=OrderItem.objects.none())
     return render(request, 'restaurant/place_order.html', {
         'table': table,
         'order_form': order_form,
         'formset': formset,
         'menu_items_json': menu_items_json,
     })
-
 
 @login_required
 @login_required
@@ -186,6 +197,8 @@ def place_order_takeaway(request):
         if order_form.is_valid() and formset.is_valid():
             order = order_form.save(commit=False)
             order.order_type = 'takeaway'
+            # record creator
+            order.created_by = request.user
             order.status = 'pending'
             order.save()
 
@@ -199,12 +212,8 @@ def place_order_takeaway(request):
                     order_item.price = menu_item.price
                     order_item.order = order
                     order_item.save()
-                    
-                    # Calculate item total and add to order total
-                    item_total = order_item.price * order_item.quantity
-                    total_amount += item_total
-
-            # Update order with calculated total
+            # Calculate total_amount
+            total_amount = sum(item.price * item.quantity for item in order.items.all())
             order.total_amount = total_amount
             order.save()
 
@@ -240,6 +249,8 @@ def place_order_delivery(request):
         if order_form.is_valid() and formset.is_valid():
             order = order_form.save(commit=False)
             order.order_type = 'delivery'
+            # record creator
+            order.created_by = request.user
             order.status = 'pending'
             order.delivery_charge = delivery_charge  # Save delivery charge
             order.save()
@@ -253,11 +264,8 @@ def place_order_delivery(request):
                     order_item.price = menu_item.price
                     order_item.order = order
                     order_item.save()
-                    
-                    item_total = order_item.price * order_item.quantity
-                    total_amount += item_total
-
-            # Save the base total amount (without delivery charge)
+            # Calculate total_amount
+            total_amount = sum(item.price * item.quantity for item in order.items.all())
             order.total_amount = total_amount
             order.save()
 
@@ -275,15 +283,55 @@ def place_order_delivery(request):
 
 @login_required
 def close_order(request, pk):
+    from decimal import Decimal
     order = get_object_or_404(Order, pk=pk)
+    
     if request.method == 'POST':
+        # Calculate settled payments
+        settled_payments = order.payments.all()
+        settled_amount = sum((Decimal(p.amount) for p in settled_payments), Decimal('0'))
+        
+        # Calculate required amount (include delivery charge)
+        required = Decimal(order.total_amount)
+        if order.order_type == 'delivery':
+            required = required + Decimal(order.delivery_charge or 0)
+        
+        # Check if payment is fully settled
+        if settled_amount < required:
+            shortage = required - settled_amount
+            messages.error(request, f'Cannot close order. Payment not fully settled. Remaining amount: Rs.{shortage}. Please collect payment first.')
+            return redirect('restaurant:order_details', order_id=order.order_id)
+        
+        # Payment is settled, proceed with closing order
+        prev = order.status
         order.status = 'completed'
-        order.payment_status = 'paid'  # Assuming payment is settled here
-        # Record who closed/completed the order when using this path
+        order.payment_status = 'paid'  # Mark as paid when closing
         order.completed_by = request.user
         order.save()
-        order.move_to_history()
+        
+        # Move the order to history (which deletes the original order after copying all details)
+        order_history = None
+        try:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Attempting to move order {order.order_id} (pk={order.id}) to history")
+            order_history = order.move_to_history()
+            if order_history:
+                logger.info(f"Order {order.order_id} successfully moved to history (history pk={order_history.id})")
+                messages.success(request, f'Order {order.order_id} completed and moved to history.')
+            else:
+                logger.warning(f"move_to_history() returned None for order {order.order_id}")
+                messages.success(request, f'Order {order.order_id} marked completed.')
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error moving order {order.order_id} to history: {e}", exc_info=True)
+            messages.error(request, f'Order marked completed but failed to move to history: {e}')
+        
+        # Always redirect to order list after processing
         return redirect('restaurant:order_list')
+    
+    # GET request - show confirmation page
     return render(request, 'restaurant/close_order.html', {'order': order})
 
 
@@ -337,10 +385,12 @@ def update_order_status(request, pk):
 
                 # Check payment sufficiency
                 if paid_val >= required_val:
+                    prev = order.status
                     order.status = 'completed'
                     order.payment_status = 'paid'
                     order.completed_by = request.user  # Track who completed the order
                     order.save()
+                    # Status log removed
                     # Move to history (this will delete the order if move_to_history succeeds)
                     order_history = None
                     try:
@@ -359,6 +409,7 @@ def update_order_status(request, pk):
                     # keep order in its current state
                     return redirect(request.META.get('HTTP_REFERER', reverse('restaurant:order_list')))
             else:
+                prev = order.status
                 order.status = normalized
                 order.save()
                 messages.success(request, f'Order {order.order_id} status updated to {order.get_status_display()}.')
@@ -396,34 +447,25 @@ def cancel_order(request, pk):
     import logging
     from decimal import Decimal
     from django.db import transaction
-    
-    logger = logging.getLogger(__name__)
-    logger.info(f"cancel_order view called with pk={pk}, method={request.method}")
-    
-    order = get_object_or_404(Order, pk=pk)
-    logger.info(f"Order retrieved: {order.order_id}")
-    
-    # Check if there are settled payments (all payments are settled by default)
-    settled_payments = order.payments.all()
-    settled_amount = sum((Decimal(p.amount) for p in settled_payments), Decimal('0'))
-    logger.info(f"Order {order.order_id} has settled amount: {settled_amount}")
-    
     if request.method == 'POST':
+        import logging
+        logger = logging.getLogger(__name__)
+        order = get_object_or_404(Order, pk=pk)
         logger.info(f"POST request for cancelling order {order.order_id}")
+        # Calculate settled payments
+        from decimal import Decimal
+        settled_payments = order.payments.all()
+        settled_amount = sum((Decimal(p.amount) for p in settled_payments), Decimal('0'))
         # Prevent cancellation if there are settled payments
         if settled_amount > 0:
-            messages.error(
-                request, 
-                f'Cannot cancel order with settled payments (Rs.{settled_amount}). '
-                'Please clear the settled amount first or contact support.'
-            )
+            messages.error(request, f'Cannot cancel order with settled payments (Rs.{settled_amount}). Please clear the settled amount first or contact support.')
             logger.warning(f"Cannot cancel {order.order_id} - has settled payments")
             return redirect('restaurant:order_details', order_id=order.order_id)
-        
+
         # Get cancellation reason from form
         cancellation_reason = request.POST.get('cancellation_reason', '').strip()
         logger.info(f"Cancellation reason: {cancellation_reason}")
-        
+
         # Move order to history with cancellation status and reason
         try:
             with transaction.atomic():
@@ -435,7 +477,7 @@ def cancel_order(request, pk):
                     order_type=order.order_type,
                     status='cancelled',
                     total_amount=order.total_amount,
-                    special_notes=order.special_notes,
+                    special_notes=order.special_notes or '',  # Provide empty string if None
                     cancellation_reason=cancellation_reason,
                     table=order.table,
                     completed_by=request.user,
@@ -443,7 +485,7 @@ def cancel_order(request, pk):
                     updated_at=order.updated_at
                 )
                 logger.info(f"OrderHistory created successfully: {order_history.id}")
-                
+
                 # Copy order items to history
                 items_count = 0
                 for order_item in order.items.all():
@@ -458,7 +500,7 @@ def cancel_order(request, pk):
                     except Exception as e:
                         logger.error(f"Error copying order item: {e}")
                 logger.info(f"Copied {items_count} items to history")
-                
+
                 # Copy payment information to history
                 payments_count = 0
                 for payment in order.payments.all():
@@ -473,44 +515,68 @@ def cancel_order(request, pk):
                     except Exception as e:
                         logger.error(f"Error copying payment: {e}")
                 logger.info(f"Copied {payments_count} payments to history")
-                
+
                 # Success - delete the original order now that everything is copied
                 order_id_backup = order.order_id
                 order.delete()
                 logger.info(f"Deleted original order {order_id_backup}")
-            
+
             reason_text = f" - Reason: {cancellation_reason}" if cancellation_reason else ""
-            messages.success(
-                request, 
-                f'Order {order_id_backup} cancelled and moved to history by {request.user.get_full_name() or request.user.username}.{reason_text}'
-            )
+            messages.success(request, f'Order {order_id_backup} cancelled and moved to history by {request.user.get_full_name() or request.user.username}.{reason_text}')
             return redirect('restaurant:order_list')
         except Exception as e:
             logger.exception(f"Error cancelling order {order.order_id}: {e}")
             messages.error(request, f'Error cancelling order: {str(e)}')
             return redirect('restaurant:order_details', order_id=order.order_id)
-    
+
     # GET request shouldn't happen normally, but just in case, redirect back
     return redirect('restaurant:order_details', order_id=order.order_id)
 
 @login_required
-def process_payment(request, pk):
-    order = get_object_or_404(Order, pk=pk)
+def revert_order(request, order_id):
+    """
+    Revert a completed or cancelled order from history back to active orders.
+    Only POST requests are processed.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     if request.method == 'POST':
-        form = PaymentForm(request.POST)
-        if form.is_valid():
-            payment = form.save(commit=False)
-            payment.order = order
-            payment.edited_by = request.user
-            payment.save()
-            return redirect('restaurant:order_details', order_id=order.order_id)
-    else:
-        form = PaymentForm()
-    return render(request, 'restaurant/process_payment.html', {
-        'form': form,
-        'order': order,
-        'payment_methods': Payment.PAYMENT_METHOD_CHOICES
-    })
+        try:
+            order_history = get_object_or_404(OrderHistory, order_id=order_id)
+            
+            # Determine the revert status based on original order type
+            # For completed/cancelled orders, revert to 'served' (table) or 'ready' (takeaway/delivery)
+            revert_status_map = {
+                'table': 'served',
+                'takeaway': 'ready_to_pickup',
+                'delivery': 'ready',
+            }
+            revert_status = revert_status_map.get(order_history.order_type, 'served')
+            
+            # Call the revert method
+            new_order = order_history.revert_to_order(revert_status=revert_status)
+            
+            if new_order:
+                logger.info(f"Order {order_id} reverted to active orders by {request.user.username}")
+                messages.success(request, f'Order {order_id} has been reverted back to active orders.')
+                # Redirect to the newly created active order details
+                return redirect(reverse('restaurant:order_details', kwargs={'order_id': new_order.order_id}))
+            else:
+                logger.error(f"Failed to revert order {order_id}")
+                messages.error(request, f'Failed to revert order {order_id}. Please try again.')
+                return redirect(reverse('restaurant:order_history_details', kwargs={'order_id': order_id}))
+        except OrderHistory.DoesNotExist:
+            messages.error(request, 'Order not found in history.')
+            return redirect('restaurant:transaction_history')
+        except Exception as e:
+            logger.exception(f"Error reverting order {order_id}: {e}")
+            messages.error(request, f'Error reverting order: {str(e)}')
+            return redirect('restaurant:transaction_history')
+    
+    # GET request - show confirmation (optional)
+    messages.error(request, 'Invalid request method. Use POST to revert an order.')
+    return redirect('restaurant:transaction_history')
 
 @login_required
 def edit_payment(request, pk):
@@ -607,11 +673,16 @@ def add_order_item(request, order_id):
 
 @login_required
 def remove_order_item(request, order_id, item_id):
+    logger = logging.getLogger(__name__)
+    logger.info(f"Received request to remove item {item_id} from order {order_id}")
+
     if request.method == 'POST':
-        order = get_object_or_404(Order, order_id=order_id)
-        order_item = get_object_or_404(OrderItem, id=item_id, order=order)
-        
         try:
+            order = get_object_or_404(Order, order_id=order_id)
+            logger.info(f"Order found: {order}")
+            order_item = get_object_or_404(OrderItem, id=item_id, order=order)
+            logger.info(f"Order item found: {order_item}")
+            
             # Calculate the reduction in total amount
             reduction = order_item.price * order_item.quantity
             
@@ -621,21 +692,75 @@ def remove_order_item(request, order_id, item_id):
             # Update the order's total amount
             order.total_amount -= reduction
             order.save()
-            
+
+            logger.info(f"Successfully removed item {item_id} from order {order_id}")
             return JsonResponse({
                 'status': 'success',
                 'new_total': str(order.total_amount)
             })
         except Exception as e:
+            logger.error(f"Error processing request: {e}")
             return JsonResponse({
                 'status': 'error',
                 'message': str(e)
             }, status=500)
     
+    logger.warning(f"Invalid request method for removing item {item_id} from order {order_id}")
     return JsonResponse({
         'status': 'error',
         'message': 'Invalid request method'
     }, status=405)
+
+
+@login_required
+def update_order_address(request, order_id):
+    """AJAX endpoint to update delivery address fields for an Order identified by order_id (8-digit string)."""
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+
+    try:
+        order = get_object_or_404(Order, order_id=order_id)
+        # Expect JSON body or form-encoded POST
+        payload = {}
+        if request.content_type and 'application/json' in request.content_type:
+            try:
+                payload = json.loads(request.body.decode('utf-8') if isinstance(request.body, bytes) else request.body)
+            except Exception:
+                payload = {}
+        else:
+            payload = request.POST.dict()
+
+        addr = (payload.get('delivery_address') or '').strip()
+        landmark = (payload.get('delivery_landmark') or '').strip()
+        building = (payload.get('delivery_building') or '').strip()
+        unit = (payload.get('delivery_unit') or '').strip()
+
+        order.delivery_address = addr or None
+        order.delivery_landmark = landmark or None
+        order.delivery_building = building or None
+        order.delivery_unit = unit or None
+        order.save()
+
+        # Build returned HTML snippet for updated address display
+        address_lines = []
+        if order.delivery_address:
+            address_lines.append(f"<div class=\"mb-1\">{order.delivery_address}</div>")
+            if order.delivery_landmark:
+                address_lines.append(f"<div class=\"text-muted small\">Landmark: {order.delivery_landmark}</div>")
+            if order.delivery_building:
+                address_lines.append(f"<div class=\"text-muted small\">Building: {order.delivery_building}</div>")
+            if order.delivery_unit:
+                address_lines.append(f"<div class=\"text-muted small\">Unit: {order.delivery_unit}</div>")
+        else:
+            address_lines.append('<div class="text-muted">No delivery address provided.</div>')
+
+        return JsonResponse({
+            'status': 'success',
+            'address_html': ''.join(address_lines),
+            'map_address': ' '.join(filter(None, [order.delivery_address or '', order.delivery_landmark or '', order.delivery_building or '', order.delivery_unit or '']))
+        })
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
 @login_required
 def update_order_items(request, order_id):
@@ -701,7 +826,14 @@ def order_details(request, order_id):
     # Calculate settled payments amount (all payments are settled)
     settled_payments = order.payments.all()
     settled_amount = sum((Decimal(p.amount) for p in settled_payments), Decimal('0'))
-    
+
+    # Calculate total and remaining amount
+    if order.order_type == 'delivery':
+        total = Decimal(order.total_amount) + Decimal(order.delivery_charge)
+    else:
+        total = Decimal(order.total_amount)
+    remaining_amount = float(total) - float(settled_amount)
+
     context = {
         'order': order,
         'categories': categories,
@@ -709,6 +841,7 @@ def order_details(request, order_id):
         'payment_methods': Payment.PAYMENT_METHOD_CHOICES,
         'settled_amount': settled_amount,
         'has_settled_payments': settled_amount > 0,
+        'remaining_amount': remaining_amount,
     }
     return render(request, 'restaurant/order_detail.html', context)
 
@@ -775,6 +908,27 @@ def order_history_details(request, order_id):
             'updated_at': order.updated_at.isoformat(),
             'items': items_data
         }
+        # Include delivery fields if present
+        try:
+            data['delivery_address'] = order.delivery_address
+            data['delivery_landmark'] = order.delivery_landmark
+            data['delivery_building'] = order.delivery_building
+            data['delivery_unit'] = order.delivery_unit
+        except Exception:
+            pass
+        # Include status logs if available (copied into history when order was moved)
+        try:
+            status_logs = []
+            for log in order.status_logs.all().order_by('timestamp'):
+                status_logs.append({
+                    'previous_status': log.previous_status,
+                    'new_status': log.new_status,
+                    'changed_by': (log.changed_by.get_full_name() if (log.changed_by and log.changed_by.get_full_name()) else (log.changed_by.username if log.changed_by else None)),
+                    'timestamp': log.timestamp.isoformat() if getattr(log, 'timestamp', None) else None
+                })
+            data['status_logs'] = status_logs
+        except Exception:
+            data['status_logs'] = []
         
         return JsonResponse(data)
     except Exception as e:
@@ -1233,3 +1387,26 @@ class OrderListView(LoginRequiredMixin, ListView):
         return Order.objects.exclude(
             Q(status='completed', payment_status='paid') | Q(status='cancelled')
         ).order_by('-created_at')
+
+from django.views.decorators.csrf import csrf_exempt
+
+@login_required
+@csrf_exempt
+def add_payment(request, order_id):
+    order = get_object_or_404(Order, id=order_id)
+    if request.method == 'POST':
+        form = PaymentForm(request.POST)
+        if form.is_valid():
+            payment = form.save(commit=False)
+            payment.order = order
+            payment.edited_by = request.user
+            payment.save()
+
+            # Update remaining amount
+            total_paid = order.payments.aggregate(Sum('amount'))['amount__sum'] or 0
+            order.remaining_amount = order.total_amount - total_paid
+            order.save()
+
+            return JsonResponse({'status': 'success', 'remaining_amount': order.remaining_amount})
+        return JsonResponse({'status': 'error', 'errors': form.errors}, status=400)
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)

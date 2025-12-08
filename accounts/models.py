@@ -14,3 +14,15 @@ class Staff(models.Model):
     salary = models.DecimalField(max_digits=10, decimal_places=2)
     joined_date = models.DateTimeField()
     is_active = models.BooleanField(default=True)
+    def __str__(self):
+        return f"{self.user.get_full_name() or self.user.username} ({self.role})"
+
+    def has_group(self, group_name):
+        return self.user.groups.filter(name=group_name).exists()
+
+    def has_permission(self, perm_codename):
+        # Perm_codename may be either 'app_label.codename' or just codename
+        if '.' in perm_codename:
+            return self.user.has_perm(perm_codename)
+        # try with app label 'restaurant' as default
+        return self.user.has_perm(f"restaurant.{perm_codename}") or self.user.has_perm(perm_codename)

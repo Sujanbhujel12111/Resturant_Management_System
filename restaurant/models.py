@@ -1,7 +1,7 @@
 from django.db import models
 import uuid
 import random
-from django.contrib.auth.models import User
+from django.conf import settings
 import datetime
 
 def generate_order_id():
@@ -67,13 +67,19 @@ class Order(models.Model):
     order_id = models.CharField(max_length=8, default=generate_order_id, editable=False, unique=True)
     customer_name = models.CharField(max_length=255)
     customer_phone = models.CharField(max_length=15, blank=True, null=True)
+    # Delivery address fields
+    delivery_address = models.TextField(blank=True, null=True)
+    delivery_landmark = models.CharField(max_length=255, blank=True, null=True)
+    delivery_building = models.CharField(max_length=255, blank=True, null=True)
+    delivery_unit = models.CharField(max_length=100, blank=True, null=True)
     order_type = models.CharField(max_length=10, choices=ORDER_TYPE_CHOICES)
     status = models.CharField(max_length=20, choices=ORDER_STATUS_CHOICES, default='pending')
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     payment_status = models.CharField(max_length=10, default='unpaid')
     special_notes = models.TextField(blank=True, null=True)
     table = models.ForeignKey('Table', on_delete=models.SET_NULL, null=True, blank=True)
-    completed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='completed_orders')
+    completed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='completed_orders')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_orders')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -95,8 +101,12 @@ class Order(models.Model):
                     order_type=self.order_type,
                     status=self.status,
                     total_amount=self.total_amount,
-                    special_notes=self.special_notes,
+                    special_notes=self.special_notes or '',  # Provide empty string if None
                     table=self.table,
+                    delivery_address=self.delivery_address,
+                    delivery_landmark=self.delivery_landmark,
+                    delivery_building=self.delivery_building,
+                    delivery_unit=self.delivery_unit,
                     completed_by=self.completed_by,
                     created_at=self.created_at,
                     updated_at=self.updated_at
@@ -127,6 +137,27 @@ class Order(models.Model):
                         print(f"Error copying payment: {e}")
                 
                 # Only delete the original order after successfully copying everything
+                # Copy status change logs into OrderHistoryStatus before deleting the order
+                try:
+                    from .models import OrderStatusLog, OrderHistoryStatus
+                except Exception:
+                    OrderStatusLog = None
+                    OrderHistoryStatus = None
+
+                if OrderStatusLog and OrderHistoryStatus:
+                    for log in self.status_logs.all():
+                        try:
+                            OrderHistoryStatus.objects.create(
+                                order_history=order_history,
+                                previous_status=log.previous_status,
+                                new_status=log.new_status,
+                                changed_by=log.changed_by,
+                                timestamp=log.timestamp
+                            )
+                        except Exception as e:
+                            print(f"Error copying status log: {e}")
+
+                # Delete the original order (and cascade-delete its logs)
                 self.delete()
                 
                 return order_history
@@ -167,7 +198,7 @@ class Payment(models.Model):
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     transaction_id = models.CharField(max_length=255, blank=True, null=True)
     date_edited = models.DateTimeField(auto_now=True)
-    edited_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    edited_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
 
     def __str__(self):
         return f'{self.payment_method} - {self.amount}'
@@ -183,9 +214,14 @@ class OrderHistory(models.Model):
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     special_notes = models.TextField(blank=True)
+    # Preserve delivery address fields in history
+    delivery_address = models.TextField(blank=True, null=True)
+    delivery_landmark = models.CharField(max_length=255, blank=True, null=True)
+    delivery_building = models.CharField(max_length=255, blank=True, null=True)
+    delivery_unit = models.CharField(max_length=100, blank=True, null=True)
     cancellation_reason = models.TextField(blank=True, null=True, help_text="Reason for order cancellation")
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    completed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='completed_order_histories')
+    completed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='completed_order_histories')
 
     def __str__(self):
         return f"Order History {self.order_id}"
@@ -195,6 +231,64 @@ class OrderHistory(models.Model):
         """Returns a list of payment details for this order"""
         payments = OrderHistoryPayment.objects.filter(order_history=self)
         return payments
+
+    def revert_to_order(self, revert_status='served'):
+        """
+        Reverts an order from history back to the active Order table.
+        Creates a new Order record with items and payments from history.
+        Returns the created Order instance if successful, None otherwise.
+        """
+        try:
+            # Create a new active Order with the history data
+            new_order = Order.objects.create(
+                order_id=self.order_id,
+                customer_name=self.customer_name,
+                customer_phone=self.customer_phone,
+                order_type=self.order_type,
+                status=revert_status,  # Revert to a previous status (e.g., 'served', 'ready')
+                total_amount=self.total_amount,
+                special_notes=self.special_notes,
+                table=self.table,
+                delivery_address=self.delivery_address,
+                delivery_landmark=self.delivery_landmark,
+                delivery_building=self.delivery_building,
+                delivery_unit=self.delivery_unit,
+                payment_status='unpaid',  # Reset payment status when reverting
+                completed_by=None,  # Clear who completed it
+            )
+            
+            # Copy order items from history
+            for history_item in self.items.all():
+                try:
+                    OrderItem.objects.create(
+                        order=new_order,
+                        item=history_item.item,
+                        quantity=history_item.quantity,
+                        price=history_item.price
+                    )
+                except Exception as e:
+                    print(f"Error copying order item back: {e}")
+            
+            # Copy payments from history (optional: copy or reset to 0)
+            for history_payment in self.payments.all():
+                try:
+                    Payment.objects.create(
+                        order=new_order,
+                        payment_method=history_payment.payment_method,
+                        amount=history_payment.amount,
+                        transaction_id=history_payment.transaction_id,
+                        edited_by=None
+                    )
+                except Exception as e:
+                    print(f"Error copying payment back: {e}")
+            
+            # Delete the history record (and cascade-delete its items/payments via related names)
+            self.delete()
+            
+            return new_order
+        except Exception as e:
+            print(f"Error reverting order from history: {e}")
+            return None
 
 class OrderHistoryPayment(models.Model):
     order_history = models.ForeignKey(OrderHistory, on_delete=models.CASCADE, related_name='payments')
@@ -215,3 +309,25 @@ class OrderHistoryItem(models.Model):
 
     def __str__(self):
         return f"{self.quantity}x {self.item.name} (Order History)"
+
+
+# Add back status log models (minimal form) so migrations that remove / copy these can run reliably.
+class OrderStatusLog(models.Model):
+    order = models.ForeignKey(Order, related_name='status_logs', on_delete=models.CASCADE)
+    previous_status = models.CharField(max_length=50, blank=True, null=True)
+    new_status = models.CharField(max_length=50, blank=True, null=True)
+    changed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.order.order_id}: {self.previous_status} -> {self.new_status} @ {self.timestamp}"
+
+class OrderHistoryStatus(models.Model):
+    order_history = models.ForeignKey(OrderHistory, related_name='status_logs', on_delete=models.CASCADE)
+    previous_status = models.CharField(max_length=50, blank=True, null=True)
+    new_status = models.CharField(max_length=50, blank=True, null=True)
+    changed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    timestamp = models.DateTimeField()
+
+    def __str__(self):
+        return f"{self.order_history.order_id}: {self.previous_status} -> {self.new_status} @ {self.timestamp}"
