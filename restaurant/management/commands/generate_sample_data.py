@@ -61,6 +61,9 @@ class Command(BaseCommand):
         orders_with_dates = []
         all_items = []
         
+        # Get available tables
+        tables = list(Table.objects.all())
+        
         for days_ago in range(90):
             # Create 2-8 orders per day randomly
             num_orders = random.randint(2, 8)
@@ -75,17 +78,22 @@ class Command(BaseCommand):
                 # Create a timezone-aware datetime by replacing the time
                 order_datetime = order_date_base.replace(hour=hour, minute=minute, second=second)
                 
-                # Random order type
-                order_type = random.choice(['delivery', 'takeaway'])
+                # Random order type with distribution: 40% delivery, 30% takeaway, 30% dine_in (table)
+                order_type = random.choices(
+                    ['delivery', 'takeaway', 'table'],
+                    weights=[40, 30, 30],
+                    k=1
+                )[0]
                 
                 # Create order instance
                 order = Order(
                     customer_name=f"Customer {random.randint(1000, 9999)}",
                     customer_phone=f"9841{random.randint(100000, 999999)}",
-                    order_type=order_type,
+                    order_type=order_type if order_type != 'table' else 'dine_in',
                     total_amount=Decimal('0'),  # Will calculate
                     delivery_charge=Decimal('50') if order_type == 'delivery' else Decimal('0'),
                     delivery_address="Sample Address" if order_type == 'delivery' else None,
+                    table=random.choice(tables) if order_type == 'table' and tables else None,
                     created_by=user,
                 )
                 

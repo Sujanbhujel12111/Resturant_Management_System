@@ -25,5 +25,20 @@ def user_permissions(request):
     perms["can_manage_menu"] = (
         user.has_perm("restaurant.change_menuitem") or user.has_perm("products.change_product")
     )
+    
+    # Add module access permissions
+    try:
+        staff = user.staff_profile
+        modules = ['dashboard', 'orders', 'menu', 'kitchen', 'history', 'tables', 'takeaway', 'delivery']
+        for module in modules:
+            if module == 'dashboard':
+                # Dashboard requires ALL permissions
+                perms[f"has_{module}"] = staff.has_all_permissions()
+            else:
+                # Other modules require just that module permission
+                perms[f"has_{module}"] = staff.has_module_access(module)
+    except:
+        # User doesn't have staff profile
+        pass
 
     return {"user_perms": perms}

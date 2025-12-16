@@ -248,7 +248,19 @@
     <!-- Header -->
     <div class="forecast-header">
         <h1><i class="fas fa-chart-line"></i> Demand Forecasting</h1>
-        <p style="color: #6c757d; margin: 0;">ARIMA time series prediction for restaurant orders</p>
+        <p style="color: #6c757d; margin: 0;">📊 Predict how many orders you'll get in the future! Plan your staff and food inventory.</p>
+    </div>
+    
+    <!-- Info Box -->
+    <div style="background: #e7f3ff; border-left: 4px solid #0066cc; padding: 1rem; border-radius: 6px; margin-bottom: 2rem;">
+        <p style="margin: 0; color: #004085; font-size: 0.95rem;">
+            <strong>💡 How to Use:</strong> 
+            1️⃣ Choose what to forecast (money or orders)
+            2️⃣ Pick your settings
+            3️⃣ Click "Generate Forecast"
+            4️⃣ Read the chart and numbers
+            5️⃣ Use results to plan staff and inventory!
+        </p>
     </div>
     
     <!-- Messages -->
@@ -257,51 +269,57 @@
     
     <!-- Controls Section -->
     <div class="controls-section">
-        <h2 style="margin: 0 0 1rem 0; font-size: 1.1rem; font-weight: 700;">Forecast Settings</h2>
+        <h2 style="margin: 0 0 1rem 0; font-size: 1.1rem; font-weight: 700;">⚙️ What Do You Want to Forecast?</h2>
         
         <div class="controls-grid">
             <div class="control-group">
-                <label for="metricSelect">Metric</label>
+                <label for="metricSelect">💰 What to Track?</label>
                 <select id="metricSelect">
-                    <option value="total_amount">Revenue (Rs.)</option>
-                    <option value="count">Order Count</option>
-                    <option value="average_amount">Average Order Value</option>
+                    <option value="total_amount">Total Money (Rs.)</option>
+                    <option value="count">Number of Orders</option>
+                    <option value="average_amount">Average Order Price</option>
                 </select>
+                <small style="color: #6c757d; margin-top: 0.25rem;">Track money or count orders</small>
             </div>
             
             <div class="control-group">
-                <label for="aggregationSelect">Aggregation</label>
+                <label for="aggregationSelect">📅 Show Results By?</label>
                 <select id="aggregationSelect">
-                    <option value="daily" selected>Daily</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="monthly">Monthly</option>
+                    <option value="daily" selected>Day by Day</option>
+                    <option value="weekly">Week by Week</option>
+                    <option value="monthly">Month</option>
                 </select>
+                <small style="color: #6c757d; margin-top: 0.25rem;">For staffing, use Daily</small>
             </div>
             
             <div class="control-group">
-                <label for="orderTypeSelect">Order Type</label>
+                <label for="orderTypeSelect">🛍️ Which Order Type?</label>
                 <select id="orderTypeSelect">
-                    <option value="">All Types</option>
-                    <option value="delivery">Delivery</option>
-                    <option value="takeaway">Takeaway</option>
-                    <option value="dine_in">Dine In</option>
+                    <option value="">All Orders (Combined)</option>
+                    <option value="delivery">🚚 Delivery Only</option>
+                    <option value="takeaway">📦 Takeaway Only</option>
+                    <option value="dine_in">🍽️ Dine-in Only</option>
                 </select>
+                <small style="color: #6c757d; margin-top: 0.25rem;">Start with "All Orders"</small>
             </div>
             
             <div class="control-group">
-                <label for="periodsInput">Forecast Periods</label>
+                <label for="periodsInput">📊 Days Ahead to Predict?</label>
                 <input type="number" id="periodsInput" value="30" min="7" max="365">
+                <small style="color: #6c757d; margin-top: 0.25rem;">7=1 week, 30=1 month</small>
             </div>
             
             <div class="control-group">
-                <label for="daysBackInput">Historical Days</label>
+                <label for="daysBackInput">📈 Use How Much History?</label>
                 <input type="number" id="daysBackInput" value="90" min="14" max="365">
+                <small style="color: #6c757d; margin-top: 0.25rem;">90 days = 3 months (best)</small>
             </div>
             
             <div class="control-group">
                 <label for="autoArimaCheckbox">
-                    <input type="checkbox" id="autoArimaCheckbox" checked> Auto ARIMA
+                    <input type="checkbox" id="autoArimaCheckbox" checked> ✨ Auto-Tune Model
                 </label>
+                <small style="color: #6c757d; margin-top: 0.25rem;">Keep checked for best results</small>
             </div>
         </div>
         
@@ -310,7 +328,7 @@
                 <i class="fas fa-play"></i> Generate Forecast
             </button>
             <button class="btn btn-secondary" onclick="generateMultiForecast()">
-                <i class="fas fa-stream"></i> Multi-Forecast
+                <i class="fas fa-stream"></i> Compare All Types
             </button>
         </div>
     </div>
@@ -325,7 +343,10 @@
     <div class="results-section" id="resultsSection" style="display: none;">
         <!-- Forecast Chart -->
         <div class="result-card">
-            <h3>Forecast Chart</h3>
+            <h3>📈 Your Forecast Chart</h3>
+            <p style="color: #6c757d; font-size: 0.85rem; margin: 0 0 1rem 0;">
+                Blue line = Your past sales | Red line = Prediction for future | Gray area = Range (best to worst case)
+            </p>
             <div class="chart-container">
                 <canvas id="forecastChart"></canvas>
             </div>
@@ -333,31 +354,37 @@
         
         <!-- Statistics -->
         <div class="result-card">
-            <h3>Forecast Statistics</h3>
+            <h3>📊 What The Numbers Say</h3>
             <div class="stats-grid">
                 <div class="stat-item">
-                    <div class="stat-label">Mean</div>
+                    <div class="stat-label">Average Per Day</div>
                     <div class="stat-value" id="statMean">-</div>
+                    <small style="color: #6c757d;">Expected daily value</small>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-label">Std Dev</div>
+                    <div class="stat-label">How Stable?</div>
                     <div class="stat-value" id="statStd">-</div>
+                    <small style="color: #6c757d;">Low = predictable</small>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-label">Min</div>
+                    <div class="stat-label">Worst Day</div>
                     <div class="stat-value" id="statMin">-</div>
+                    <small style="color: #6c757d;">Lowest value</small>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-label">Max</div>
+                    <div class="stat-label">Best Day</div>
                     <div class="stat-value" id="statMax">-</div>
+                    <small style="color: #6c757d;">Highest value</small>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-label">Sum</div>
+                    <div class="stat-label">Total for Period</div>
                     <div class="stat-value" id="statSum">-</div>
+                    <small style="color: #6c757d;">Complete total</small>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-label">Trend</div>
+                    <div class="stat-label">Direction</div>
                     <div class="stat-value" id="statTrend">-</div>
+                    <small style="color: #6c757d;">Going up or down?</small>
                 </div>
             </div>
         </div>
@@ -365,41 +392,47 @@
     
     <!-- Diagnostics Section -->
     <div class="diagnostics-section" id="diagnosticsSection" style="display: none;">
-        <h3 style="margin: 0 0 1rem 0;">Model Diagnostics</h3>
+        <h3 style="margin: 0 0 1rem 0;">✅ How Good is This Forecast?</h3>
+        <p style="color: #6c757d; margin: 0 0 1rem 0; font-size: 0.9rem;">
+            These numbers show if the prediction is trustworthy. Higher values are usually better (except for the last one).
+        </p>
         <table class="diagnostic-table">
             <thead>
                 <tr>
-                    <th>Metric</th>
-                    <th>Value</th>
+                    <th>What It Means</th>
+                    <th>Your Result</th>
                 </tr>
             </thead>
             <tbody>
                 <tr>
-                    <td>AIC</td>
+                    <td>Model Quality (lower = better) 📊</td>
                     <td id="diagAIC">-</td>
                 </tr>
                 <tr>
-                    <td>BIC</td>
+                    <td>Alternative Quality Score (lower = better) 📊</td>
                     <td id="diagBIC">-</td>
                 </tr>
                 <tr>
-                    <td>Log-Likelihood</td>
+                    <td>How Well It Fits 📈</td>
                     <td id="diagLoglik">-</td>
                 </tr>
                 <tr>
-                    <td>Residuals Mean</td>
+                    <td>Prediction Errors (should be close to 0) 🎯</td>
                     <td id="diagResMean">-</td>
                 </tr>
                 <tr>
-                    <td>Residuals Std</td>
+                    <td>How Much Variation in Errors 📊</td>
                     <td id="diagResStd">-</td>
                 </tr>
                 <tr>
-                    <td>Data Points</td>
+                    <td>Days of Data Used 📅</td>
                     <td id="diagDataPoints">-</td>
                 </tr>
             </tbody>
         </table>
+        <p style="color: #6c757d; margin: 1rem 0 0 0; font-size: 0.85rem;">
+            💡 <strong>Simple Rule:</strong> If these numbers are stable and predictable, your forecast is good!
+        </p>
     </div>
 </div>
 

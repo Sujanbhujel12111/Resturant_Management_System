@@ -3,6 +3,7 @@ from django.shortcuts import get_object_or_404, render, redirect
 from .models import Order, Payment
 from .forms import PaymentForm
 from django.contrib.auth.decorators import login_required
+from accounts.decorators import require_module_access
 
 @login_required
 def process_payment(request, pk):
@@ -29,6 +30,7 @@ from django.http import JsonResponse, HttpResponse
 from django.urls import reverse_lazy, reverse
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
 from django.contrib.auth.mixins import LoginRequiredMixin
+from accounts.mixins import ModuleAccessMixin
 from .models import Table, Category, MenuItem, Order, OrderItem, Payment, OrderHistory, OrderHistoryPayment
 from .forms import MenuItemForm, CategoryForm, OrderForm, OrderItemForm, PaymentForm
 import json
@@ -53,7 +55,7 @@ class LogoutView(auth_views.LogoutView):
     template_name = 'home/logout.html'
 
 
-@login_required
+@require_module_access('menu')
 def menu_view(request):
     # Pass all categories (active and inactive) so staff can manage visibility
     categories = Category.objects.all().prefetch_related('menuitem_set')
@@ -87,7 +89,7 @@ def generate_qr_code(request):
     buffer.seek(0)
     return HttpResponse(buffer, content_type="image/png")
 
-@login_required
+@require_module_access('dashboard')
 def dashboard_view(request):
     today = date.today()
     pending_orders = Order.objects.exclude(status__in=['completed', 'cancelled']).count()
@@ -110,6 +112,7 @@ def dashboard_view(request):
     return render(request, 'restaurant/dashboard.html', context)
 
 @login_required
+@require_module_access('kitchen')
 def kitchen_view(request):
     # Show active orders for the kitchen station. Include pending and preparing orders
     # so staff can see incoming orders and start preparing them. Exclude completed/cancelled.
@@ -117,7 +120,7 @@ def kitchen_view(request):
     return render(request, 'restaurant/kitchen.html', {'orders': orders})
 
 
-@login_required
+@require_module_access('kitchen')
 def kitchen_orders_api(request):
     """Return JSON list of active orders for the kitchen board (used by AJAX polling)."""
     orders_qs = Order.objects.exclude(status__in=['completed', 'cancelled']).order_by('created_at')
@@ -133,6 +136,7 @@ def kitchen_orders_api(request):
         })
     return JsonResponse({'orders': orders_list})
 
+@require_module_access('orders')
 @login_required
 def place_order(request, table_id):
     table = get_object_or_404(Table, id=table_id)
@@ -175,8 +179,7 @@ def place_order(request, table_id):
         'formset': formset,
         'menu_items_json': menu_items_json,
     })
-
-@login_required
+@require_module_access('takeaway')
 @login_required
 def place_order_takeaway(request):
     OrderItemFormSet = modelformset_factory(OrderItem, form=OrderItemForm, extra=1)
@@ -229,6 +232,7 @@ def place_order_takeaway(request):
         'menu_items_json': menu_items_json,
     })
 
+@require_module_access('delivery')
 @login_required
 def place_order_delivery(request):
     OrderItemFormSet = modelformset_factory(OrderItem, form=OrderItemForm, extra=1)
@@ -529,6 +533,127 @@ def cancel_order(request, pk):
             messages.error(request, f'Error cancelling order: {str(e)}')
             return redirect('restaurant:order_details', order_id=order.order_id)
 
+
+@login_required
+def bulk_cancel_orders(request):
+    """Bulk cancel multiple orders via AJAX. All orders must have settled payments."""
+    import json
+    import logging
+    from decimal import Decimal
+    from django.db import transaction
+    from django.http import JsonResponse
+    
+    logger = logging.getLogger(__name__)
+    
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Method not allowed'}, status=405)
+    
+    try:
+        data = json.loads(request.body)
+        order_ids = data.get('order_ids', [])
+        
+        if not order_ids:
+            return JsonResponse({'success': False, 'message': 'No orders selected'})
+        
+        # Get all selected orders
+        orders = Order.objects.filter(id__in=order_ids)
+        
+        if not orders.exists():
+            return JsonResponse({'success': False, 'message': 'Orders not found'})
+        
+        # Check if all orders have NO settled payments (can only cancel unpaid orders)
+        settled_order_numbers = []
+        for order in orders:
+            settled_payments = order.payments.all()
+            settled_amount = sum((Decimal(p.amount) for p in settled_payments), Decimal('0'))
+            
+            # Calculate required amount based on order type
+            if order.order_type == 'delivery':
+                required_amount = order.total_amount + order.delivery_charge
+            else:
+                required_amount = order.total_amount
+            
+            # If payment IS settled, add to list (cannot cancel)
+            if settled_amount > 0:
+                settled_order_numbers.append(order.order_id)
+        
+        # If there are settled orders, return error
+        if settled_order_numbers:
+            return JsonResponse({
+                'success': False,
+                'message': f'Cannot cancel these orders - Please clear the payment first:\n\n{", ".join(settled_order_numbers)}'
+            })
+        
+        # All orders have no payment - proceed with cancellation
+        cancelled_count = 0
+        
+        try:
+            with transaction.atomic():
+                for order in orders:
+                    try:
+                        # Create OrderHistory record
+                        order_history = OrderHistory.objects.create(
+                            order_id=order.order_id,
+                            customer_name=order.customer_name,
+                            customer_phone=order.customer_phone,
+                            order_type=order.order_type,
+                            status='cancelled',
+                            total_amount=order.total_amount,
+                            special_notes=order.special_notes or '',
+                            cancellation_reason='Bulk cancelled by admin',
+                            table=order.table,
+                            completed_by=request.user,
+                            created_at=order.created_at,
+                            updated_at=order.updated_at
+                        )
+                        
+                        # Copy items
+                        for order_item in order.items.all():
+                            OrderHistoryItem.objects.create(
+                                order_history=order_history,
+                                item=order_item.item,
+                                quantity=order_item.quantity,
+                                price=order_item.price
+                            )
+                        
+                        # Copy payments
+                        for payment in order.payments.all():
+                            OrderHistoryPayment.objects.create(
+                                order_history=order_history,
+                                payment_method=payment.payment_method,
+                                amount=payment.amount,
+                                transaction_id=payment.transaction_id
+                            )
+                        
+                        # Delete original order
+                        order_id_backup = order.order_id
+                        order.delete()
+                        logger.info(f"Bulk cancelled order {order_id_backup}")
+                        cancelled_count += 1
+                        
+                    except Exception as e:
+                        logger.error(f"Error cancelling order {order.order_id}: {e}")
+                        continue
+            
+            return JsonResponse({
+                'success': True,
+                'cancelled_count': cancelled_count,
+                'message': f'Successfully cancelled {cancelled_count} order(s)'
+            })
+        
+        except Exception as e:
+            logger.exception(f"Error in bulk cancellation: {e}")
+            return JsonResponse({
+                'success': False,
+                'message': f'Error during bulk cancellation: {str(e)}'
+            })
+    
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'message': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.exception(f"Unexpected error in bulk_cancel_orders: {e}")
+        return JsonResponse({'success': False, 'message': 'An unexpected error occurred'}, status=500)
+
     # GET request shouldn't happen normally, but just in case, redirect back
     return redirect('restaurant:order_details', order_id=order.order_id)
 
@@ -783,6 +908,7 @@ def update_order_items(request, order_id):
     return JsonResponse({'success': False, 'error': 'Invalid request method'})
 
 
+@require_module_access('history')
 @login_required
 def transaction_history(request):
     orders = OrderHistory.objects.all().order_by('-created_at')
@@ -972,7 +1098,8 @@ def order_update_notes(request, order_id):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
-class TableListView(LoginRequiredMixin, ListView):
+class TableListView(ModuleAccessMixin, ListView):
+    module_required = 'tables'
     model = Table
     template_name = 'restaurant/table_list.html'
     context_object_name = 'tables'
@@ -990,29 +1117,34 @@ class TableListView(LoginRequiredMixin, ListView):
             table.is_occupied = table.id in table_ids_with_pending_orders
         return tables
 
-class TableCreateView(LoginRequiredMixin, CreateView):
+class TableCreateView(ModuleAccessMixin, CreateView):
+    module_required = 'tables'
     model = Table
     form_class = TableForm
     template_name = 'restaurant/table_form.html'
     success_url = reverse_lazy('restaurant:table_list')
 
-class TableUpdateView(LoginRequiredMixin, UpdateView):
+class TableUpdateView(ModuleAccessMixin, UpdateView):
+    module_required = 'tables'
     model = Table
     form_class = TableForm
     template_name = 'restaurant/table_form.html'
     success_url = reverse_lazy('restaurant:table_list')
 
-class TableDeleteView(LoginRequiredMixin, DeleteView):
+class TableDeleteView(ModuleAccessMixin, DeleteView):
+    module_required = 'tables'
     model = Table
     template_name = 'restaurant/table_confirm_delete.html'
     success_url = reverse_lazy('restaurant:table_list')
 
-class MenuItemListView(LoginRequiredMixin, ListView):
+class MenuItemListView(ModuleAccessMixin, ListView):
+    module_required = 'menu'
     model = MenuItem
     template_name = 'restaurant/menuitem_list.html'
     context_object_name = 'menu_items'
 
-class MenuItemCreateView(LoginRequiredMixin, CreateView):
+class MenuItemCreateView(ModuleAccessMixin, CreateView):
+    module_required = 'menu'
     model = MenuItem
     form_class = MenuItemForm
     template_name = 'restaurant/menuitem_form.html'
@@ -1328,7 +1460,8 @@ def export_orders_pdf(request):
     return HttpResponse(buffer, content_type='application/pdf', headers={'Content-Disposition': 'attachment; filename="transaction_history.pdf"'})
 
 
-class MenuItemUpdateView(LoginRequiredMixin, UpdateView):
+class MenuItemUpdateView(ModuleAccessMixin, UpdateView):
+    module_required = 'menu'
     model = MenuItem
     form_class = MenuItemForm
     template_name = 'restaurant/menuitem_form.html'
@@ -1342,7 +1475,8 @@ class MenuItemUpdateView(LoginRequiredMixin, UpdateView):
         )
         return form
 
-class MenuItemDeleteView(LoginRequiredMixin, DeleteView):
+class MenuItemDeleteView(ModuleAccessMixin, DeleteView):
+    module_required = 'menu'
     model = MenuItem
     template_name = 'restaurant/menuitem_confirm_delete.html'
     success_url = reverse_lazy('restaurant:menuitem_list')
@@ -1352,29 +1486,34 @@ class MenuItemDetailView(LoginRequiredMixin, DetailView):
     template_name = 'restaurant/menuitem_detail.html'
     context_object_name = 'menu_item'
 
-class CategoryListView(LoginRequiredMixin, ListView):
+class CategoryListView(ModuleAccessMixin, ListView):
+    module_required = 'menu'
     model = Category
     template_name = 'restaurant/category_list.html'
     context_object_name = 'categories'
 
-class CategoryCreateView(LoginRequiredMixin, CreateView):
+class CategoryCreateView(ModuleAccessMixin, CreateView):
+    module_required = 'menu'
     model = Category
     form_class = CategoryForm
     template_name = 'restaurant/category_form.html'
     success_url = reverse_lazy('restaurant:category_list')
 
-class CategoryUpdateView(LoginRequiredMixin, UpdateView):
+class CategoryUpdateView(ModuleAccessMixin, UpdateView):
+    module_required = 'menu'
     model = Category
     form_class = CategoryForm
     template_name = 'restaurant/category_form.html'
     success_url = reverse_lazy('restaurant:category_list')
 
-class CategoryDeleteView(LoginRequiredMixin, DeleteView):
+class CategoryDeleteView(ModuleAccessMixin, DeleteView):
+    module_required = 'menu'
     model = Category
     template_name = 'restaurant/category_confirm_delete.html'
     success_url = reverse_lazy('restaurant:category_list')
 
-class OrderListView(LoginRequiredMixin, ListView):
+class OrderListView(ModuleAccessMixin, ListView):
+    module_required = 'orders'
     model = Order
     template_name = 'restaurant/order_list.html'
     context_object_name = 'orders'

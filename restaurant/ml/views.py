@@ -58,7 +58,7 @@ def generate_forecast(request):
         aggregation = data.get('aggregation', 'daily')
         periods = int(data.get('periods', 30))
         order_type = data.get('order_type')
-        use_auto_arima = data.get('use_auto_arima', True)
+        use_auto_arima = data.get('use_auto_arima', False)  # Changed to False - use regular ARIMA by default
         days_back = int(data.get('days_back', 90))
         
         # Get time series data
@@ -83,12 +83,28 @@ def generate_forecast(request):
         
         # Fit model
         if use_auto_arima:
-            model = auto_arima_fit(ts_data, name=f'forecast_{metric}_{order_type}')
-            if model is None:
-                return JsonResponse({
-                    'success': False,
-                    'error': 'Failed to fit auto_arima model',
-                }, status=500)
+            try:
+                model = auto_arima_fit(ts_data, name=f'forecast_{metric}_{order_type}')
+                if model is None:
+                    logger.warning("auto_arima returned None, falling back to regular ARIMA")
+                    # Fall back to regular ARIMA
+                    model = ARIMAForecast(name=f'forecast_{metric}_{order_type}')
+                    fit_result = model.fit(ts_data)
+                    if not fit_result['success']:
+                        return JsonResponse({
+                            'success': False,
+                            'error': f'Model fitting failed: {fit_result.get("error", "Unknown error")}',
+                        }, status=500)
+            except Exception as e:
+                logger.warning(f"auto_arima failed with error: {e}, falling back to regular ARIMA")
+                # Fall back to regular ARIMA on any error
+                model = ARIMAForecast(name=f'forecast_{metric}_{order_type}')
+                fit_result = model.fit(ts_data)
+                if not fit_result['success']:
+                    return JsonResponse({
+                        'success': False,
+                        'error': f'Model fitting failed: {fit_result.get("error", "Unknown error")}',
+                    }, status=500)
         else:
             model = ARIMAForecast(name=f'forecast_{metric}_{order_type}')
             fit_result = model.fit(ts_data)

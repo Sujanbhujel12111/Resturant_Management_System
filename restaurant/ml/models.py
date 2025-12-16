@@ -88,7 +88,7 @@ class ARIMAForecast:
             else:
                 self.model = ARIMA(ts_data, order=self.order)
             
-            self.model_fit = self.model.fit(disp=False)
+            self.model_fit = self.model.fit()
             self.last_trained = datetime.now()
             
             logger.info(f"Model '{self.name}' fitted successfully. AIC: {self.model_fit.aic:.2f}")
@@ -124,27 +124,69 @@ class ARIMAForecast:
             raise ValueError("Model must be fitted before forecasting. Call fit() first.")
         
         try:
-            # Get forecast
-            forecast_result = self.model_fit.get_forecast(steps=periods)
-            forecast_values = forecast_result.predicted_mean
+            # Handle both statsmodels and pmdarima ARIMA objects
+            model_type = type(self.model_fit).__name__
+            
+            # Check if this is a statsmodels model (has get_forecast method)
+            if hasattr(self.model_fit, 'get_forecast') and model_type not in ['ARIMA', 'AutoArimaModel']:
+                # statsmodels ARIMA
+                forecast_result = self.model_fit.get_forecast(steps=periods)
+                forecast_values = forecast_result.predicted_mean.values
+                
+                # Get confidence intervals from statsmodels
+                try:
+                    conf_int = forecast_result.conf_int(alpha=0.05)
+                    conf_int_results = (conf_int.iloc[:, 0].values, conf_int.iloc[:, 1].values)
+                except Exception as e:
+                    logger.warning(f"Could not get confidence intervals: {e}")
+                    conf_int_results = None
+                
+                logger.info(f"Used statsmodels forecast method (model type: {model_type})")
+                
+            elif hasattr(self.model_fit, 'predict'):
+                # pmdarima ARIMA uses predict for out-of-sample forecasts
+                try:
+                    forecast_values, conf_int_results = self.model_fit.get_forecast(steps=periods, return_conf_int=True, alpha=0.05)
+                    logger.info(f"Used pmdarima get_forecast method (model type: {model_type})")
+                except (AttributeError, TypeError):
+                    # Fallback: use simple predict
+                    forecast_values = self.model_fit.predict(n_periods=periods)
+                    conf_int_results = None
+                    logger.info(f"Used pmdarima predict method (model type: {model_type})")
+            else:
+                raise ValueError(f"Unknown model type: {model_type}")
             
             # Generate future dates
             last_date = self.ts_data.index[-1]
             freq = self.ts_data.index.inferred_freq or 'D'
             future_dates = pd.date_range(start=last_date, periods=periods + 1, freq=freq)[1:]
             
+            # Convert forecast values to list
+            if hasattr(forecast_values, 'tolist'):
+                forecast_list = forecast_values.tolist()
+            else:
+                forecast_list = list(forecast_values)
+            
             # Prepare results
             results = {
-                'forecast': forecast_values.values.tolist(),
+                'forecast': forecast_list,
                 'dates': [d.isoformat() for d in future_dates],
                 'periods': periods,
             }
             
             # Add confidence intervals if requested
-            if include_conf_int:
-                conf_int = forecast_result.conf_int(alpha=0.05)
-                results['lower_bound'] = conf_int.iloc[:, 0].values.tolist()
-                results['upper_bound'] = conf_int.iloc[:, 1].values.tolist()
+            if include_conf_int and conf_int_results is not None:
+                lower, upper = conf_int_results
+                results['lower_bound'] = lower.tolist() if hasattr(lower, 'tolist') else list(lower)
+                results['upper_bound'] = upper.tolist() if hasattr(upper, 'tolist') else list(upper)
+            elif include_conf_int:
+                # Fallback: use +/- standard error
+                try:
+                    std_err = np.std([forecast_list[i] - forecast_list[i-1] if i > 0 else forecast_list[0] for i in range(len(forecast_list))])
+                    results['lower_bound'] = [v - 1.96 * std_err for v in forecast_list]
+                    results['upper_bound'] = [v + 1.96 * std_err for v in forecast_list]
+                except Exception as e:
+                    logger.debug(f"Could not compute confidence interval bounds: {e}")
             
             self.forecast_results = results
             logger.info(f"Generated forecast for {periods} periods")
@@ -152,7 +194,7 @@ class ARIMAForecast:
             return results
         
         except Exception as e:
-            logger.error(f"Error during forecasting: {e}")
+            logger.error(f"Error during forecasting: {e}", exc_info=True)
             return {
                 'success': False,
                 'error': str(e),
@@ -169,18 +211,48 @@ class ARIMAForecast:
             return {'error': 'Model not fitted'}
         
         try:
-            residuals = self.model_fit.resid
+            # Handle both statsmodels and pmdarima - they have different attribute/method types
+            # resid can be a property or method
+            if callable(self.model_fit.resid):
+                residuals = self.model_fit.resid()
+            else:
+                residuals = self.model_fit.resid
             
-            return {
-                'aic': float(self.model_fit.aic),
-                'bic': float(self.model_fit.bic),
-                'loglik': float(self.model_fit.llf),
+            try:
+                aic_val = self.model_fit.aic() if callable(self.model_fit.aic) else float(self.model_fit.aic)
+            except (AttributeError, TypeError):
+                aic_val = None
+            
+            try:
+                bic_val = self.model_fit.bic() if callable(self.model_fit.bic) else float(self.model_fit.bic)
+            except (AttributeError, TypeError):
+                bic_val = None
+            
+            try:
+                llf_val = self.model_fit.llf() if callable(self.model_fit.llf) else float(self.model_fit.llf)
+            except (AttributeError, TypeError):
+                llf_val = None
+            
+            diagnostics = {
+                'aic': aic_val,
+                'bic': bic_val,
+                'loglik': llf_val,
                 'residuals_mean': float(residuals.mean()),
                 'residuals_std': float(residuals.std()),
-                'ljungbox_pvalue': float(adfuller(residuals, autolag='AIC')[1]) if len(residuals) > 1 else None,
+                'ljungbox_pvalue': None,
             }
+            
+            # Try to get Ljung-Box test p-value
+            try:
+                from statsmodels.stats.diagnostic import acorr_ljungbox
+                lb_result = acorr_ljungbox(residuals, lags=10, return_df=True)
+                diagnostics['ljungbox_pvalue'] = float(lb_result['lb_pvalue'].mean())
+            except Exception as e:
+                logger.debug(f"Could not compute Ljung-Box test: {e}")
+            
+            return diagnostics
         except Exception as e:
-            logger.error(f"Error getting diagnostics: {e}")
+            logger.error(f"Error getting diagnostics: {e}", exc_info=True)
             return {'error': str(e)}
     
     def summary(self):
@@ -249,14 +321,17 @@ def auto_arima_fit(ts_data, name='auto_arima', **kwargs):
     
     try:
         # Default parameters for auto_arima
+        # DISABLED seasonal=True because it causes "no more samples after seasonal differencing" error
+        # For restaurant data, daily seasonality is less important than capturing trend
         default_params = {
             'max_p': 5,
             'max_d': 2,
             'max_q': 5,
-            'seasonal': True,
+            'seasonal': False,  # Disable seasonal differencing to avoid error
             'stepwise': True,
             'trace': False,
-            'm': 7,  # 7 for daily data (weekly seasonality)
+            # 'm': 7,  # Removed: not used when seasonal=False
+            'suppress_warnings': True,  # Suppress deprecation warnings
         }
         default_params.update(kwargs)
         

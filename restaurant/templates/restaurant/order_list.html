@@ -10,12 +10,20 @@
             <h1 class="display-6 mb-2">Order Management</h1>
             <p class="text-muted">View and manage all orders</p>
         </div>
-        <a href="{% url 'restaurant:place_order_takeaway' %}" class="btn btn-primary">
-            <svg class="me-2" style="width: 1.25rem; height: 1.25rem; display: inline;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-            </svg>
-            New Order
-        </a>
+        <div class="d-flex gap-2">
+            <button id="bulkCancelBtn" class="btn btn-danger" style="display: none;" onclick="bulkCancelOrders()">
+                <svg class="me-2" style="width: 1.25rem; height: 1.25rem; display: inline;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+                Cancel Selected
+            </button>
+            <a href="{% url 'restaurant:place_order_takeaway' %}" class="btn btn-primary">
+                <svg class="me-2" style="width: 1.25rem; height: 1.25rem; display: inline;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                New Order
+            </a>
+        </div>
     </div>
 
     <!-- Filters and Search -->
@@ -60,6 +68,9 @@
             <table id="ordersTable" class="table table-hover mb-0">
                 <thead class="table-light">
                     <tr>
+                        <th style="width: 40px;">
+                            <input type="checkbox" id="selectAll" class="form-check-input" onchange="toggleSelectAll(this)">
+                        </th>
                         <th>Order ID</th>
                         <th>Type</th>
                         <th>Amount</th>
@@ -71,7 +82,11 @@
                 <tbody id="ordersBody">
                     {% for order in orders %}
                     {% with total_payments=order.payments.all|sum_payments %}
-                    <tr>
+                    {% with required_amount=order.total_amount|add:order.delivery_charge|add:0 %}
+                    <tr data-order-id="{{ order.id }}" data-order-number="{{ order.order_id }}" data-has-payment="{% if total_payments > 0 %}true{% else %}false{% endif %}">
+                        <td>
+                            <input type="checkbox" class="form-check-input order-checkbox" value="{{ order.id }}" onchange="updateBulkActionButton()">
+                        </td>
                         <td>
                             <span class="font-monospace fw-bold">#{{ order.order_id }}</span>
                         </td>
@@ -138,6 +153,7 @@
                         </td>
                     </tr>
                     {% endwith %}
+                    {% endwith %}
                     {% endfor %}
             </table>
         </div>
@@ -187,6 +203,105 @@
 
             row.style.display = show ? '' : 'none';
         });
+    }
+
+    // Bulk selection functions
+    function toggleSelectAll(checkbox) {
+        const visibleCheckboxes = document.querySelectorAll('#ordersBody tr:not([style*="display: none"]) .order-checkbox');
+        visibleCheckboxes.forEach(cb => {
+            cb.checked = checkbox.checked;
+        });
+        updateBulkActionButton();
+    }
+
+    function updateBulkActionButton() {
+        const selectedCheckboxes = document.querySelectorAll('.order-checkbox:checked');
+        const bulkCancelBtn = document.getElementById('bulkCancelBtn');
+        
+        if (selectedCheckboxes.length > 0) {
+            bulkCancelBtn.style.display = 'inline-block';
+        } else {
+            bulkCancelBtn.style.display = 'none';
+            document.getElementById('selectAll').checked = false;
+        }
+    }
+
+    function bulkCancelOrders() {
+        const selectedCheckboxes = document.querySelectorAll('.order-checkbox:checked');
+        const selectedOrders = Array.from(selectedCheckboxes).map(cb => ({
+            id: cb.value,
+            row: cb.closest('tr')
+        }));
+
+        if (selectedOrders.length === 0) {
+            alert('Please select at least one order to cancel');
+            return;
+        }
+
+        // Check if any order has payment - cannot cancel paid orders
+        let paidOrders = [];
+        selectedOrders.forEach(order => {
+            const hasPayment = order.row.getAttribute('data-has-payment') === 'true';
+            if (hasPayment) {
+                const orderNumber = order.row.getAttribute('data-order-number');
+                paidOrders.push(orderNumber);
+            }
+        });
+
+        // If there are paid orders, show popup and prevent cancellation
+        if (paidOrders.length > 0) {
+            const orderList = paidOrders.join(', ');
+            alert('Cannot cancel these orders - Please clear the payment first:\n\nOrder Numbers: ' + orderList);
+            return;
+        }
+
+        // If all orders have no payment, proceed with cancellation
+        const confirmMessage = `Are you sure you want to cancel ${selectedOrders.length} order(s)?\n\nThis action cannot be undone.`;
+        
+        if (confirm(confirmMessage)) {
+            // Send POST request to cancel orders
+            const orderIds = selectedOrders.map(o => o.id);
+            
+            fetch('{% url "restaurant:bulk_cancel_orders" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({
+                    order_ids: orderIds
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`Successfully cancelled ${data.cancelled_count} order(s)`);
+                    location.reload();
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to cancel orders'));
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error);
+                console.error('Error:', error);
+            });
+        }
+    }
+
+    // Helper function to get CSRF token
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
     }
 </script>
 <script>

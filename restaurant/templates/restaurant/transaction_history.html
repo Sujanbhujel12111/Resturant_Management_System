@@ -118,28 +118,80 @@
 
 
             <!-- Pagination -->
-                    <div class="mt-3 d-flex justify-content-center gap-2 flex-wrap">
-                        <small class="text-secondary">
-                            Showing {{ orders.start_index }} to {{ orders.end_index }} of {{ orders.paginator.count }} entries
-                        </small>
-                        <div class="d-flex gap-2">
-                            {% if orders.has_previous %}
-                                <a href="?page={{ orders.previous_page_number }}{% if params %}&{{ params }}{% endif %}" class="btn btn-sm btn-outline-primary">Previous</a>
-                            {% endif %}
-                            
-                            {% for num in orders.paginator.page_range %}
-                                {% if num == orders.number %}
-                                    <span class="btn btn-sm btn-primary disabled">{{ num }}</span>
-                                {% else %}
-                                    <a href="?page={{ num }}{% if params %}&{{ params }}{% endif %}" class="btn btn-sm btn-outline-primary">{{ num }}</a>
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 p-3 border-top">
+                <small class="text-secondary">
+                    Showing <strong>{{ orders.start_index }}</strong> to <strong>{{ orders.end_index }}</strong> of <strong>{{ orders.paginator.count }}</strong> entries
+                </small>
+                
+                <nav aria-label="Page navigation" class="d-flex justify-content-center">
+                    <ul class="pagination pagination-sm mb-0">
+                        {% if orders.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page=1{% if params %}&{{ params }}{% endif %}" aria-label="First">
+                                    <span aria-hidden="true">&laquo;&laquo;</span>
+                                </a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ orders.previous_page_number }}{% if params %}&{{ params }}{% endif %}" aria-label="Previous">
+                                    <span aria-hidden="true">&laquo;</span>
+                                </a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">&laquo;&laquo;</span>
+                            </li>
+                            <li class="page-item disabled">
+                                <span class="page-link">&laquo;</span>
+                            </li>
+                        {% endif %}
+                        
+                        {% for num in orders.paginator.page_range %}
+                            {% if num == orders.number %}
+                                <li class="page-item active">
+                                    <span class="page-link">
+                                        {{ num }}
+                                        <span class="visually-hidden">(current)</span>
+                                    </span>
+                                </li>
+                            {% elif num > orders.number|add:'-3' and num < orders.number|add:'3' %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ num }}{% if params %}&{{ params }}{% endif %}">{{ num }}</a>
+                                </li>
+                            {% elif num == 1 or num == orders.paginator.num_pages %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ num }}{% if params %}&{{ params }}{% endif %}">{{ num }}</a>
+                                </li>
+                            {% elif num == 2 or num == orders.paginator.num_pages|add:'-1' %}
+                                {% if forloop.first or forloop.last %}
+                                    <li class="page-item disabled">
+                                        <span class="page-link">...</span>
+                                    </li>
                                 {% endif %}
-                            {% endfor %}
-                            
-                            {% if orders.has_next %}
-                                <a href="?page={{ orders.next_page_number }}{% if params %}&{{ params }}{% endif %}" class="btn btn-sm btn-outline-primary">Next</a>
                             {% endif %}
-                        </div>
-                    </div>
+                        {% endfor %}
+                        
+                        {% if orders.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ orders.next_page_number }}{% if params %}&{{ params }}{% endif %}" aria-label="Next">
+                                    <span aria-hidden="true">&raquo;</span>
+                                </a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ orders.paginator.num_pages }}{% if params %}&{{ params }}{% endif %}" aria-label="Last">
+                                    <span aria-hidden="true">&raquo;&raquo;</span>
+                                </a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">&raquo;</span>
+                            </li>
+                            <li class="page-item disabled">
+                                <span class="page-link">&raquo;&raquo;</span>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
         </div>
     </div>
 

@@ -44,14 +44,37 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <!-- Desktop Navigation -->
                 <div class="navbar-nav ms-auto">
+                    {% if user.is_superuser or user_perms.has_dashboard %}
                     <a href="{% url 'home:dashboard' %}" class="nav-link px-3 py-2">Dashboard</a>
+                    {% endif %}
+                    
+                    {% if user.is_superuser or user_perms.has_orders %}
                     <a href="{% url 'restaurant:order_list' %}" class="nav-link px-3 py-2">Orders</a>
+                    {% endif %}
+                    
+                    {% if user.is_superuser or user_perms.has_menu %}
                     <a href="{% url 'restaurant:menuitem_list' %}" class="nav-link px-3 py-2">Menu</a>
+                    {% endif %}
+                    
+                    {% if user.is_superuser or user_perms.has_kitchen %}
                     <a href="{% url 'restaurant:kitchen' %}" class="nav-link px-3 py-2">Kitchen</a>
+                    {% endif %}
+                    
+                    {% if user.is_superuser or user_perms.has_history %}
                     <a href="{% url 'restaurant:transaction_history' %}" class="nav-link px-3 py-2">History</a>
+                    {% endif %}
+                    
+                    {% if user.is_superuser or user_perms.has_tables %}
                     <a href="{% url 'restaurant:table_list' %}" class="nav-link px-3 py-2">Tables</a>
+                    {% endif %}
+                    
+                    {% if user.is_superuser or user_perms.has_takeaway %}
                     <a href="{% url 'restaurant:place_order_takeaway' %}" class="nav-link px-3 py-2">Take Away</a>
+                    {% endif %}
+                    
+                    {% if user.is_superuser or user_perms.has_delivery %}
                     <a href="{% url 'restaurant:place_order_delivery' %}" class="nav-link px-3 py-2">Delivery</a>
+                    {% endif %}
                 </div>
 
                 <!-- Profile Dropdown -->

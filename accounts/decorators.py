@@ -56,3 +56,48 @@ def staff_permission_required(name):
         return _wrapped
 
     return decorator
+
+
+def require_module_access(module_name):
+    """Decorator to require access to a specific module
+    
+    Usage:
+        @require_module_access('kitchen')
+        def kitchen_view(request):
+            ...
+    """
+    def decorator(view_func):
+        @wraps(view_func)
+        def _wrapped(request, *args, **kwargs):
+            user = getattr(request, 'user', None)
+            
+            # Check if user is authenticated
+            if not user or not user.is_authenticated:
+                return redirect('login')
+            
+            # Superusers always have access
+            if user.is_superuser:
+                return view_func(request, *args, **kwargs)
+            
+            # Check if staff has module access
+            try:
+                staff = user.staff_profile
+                if module_name == 'dashboard':
+                    # Dashboard requires ALL permissions
+                    if staff.has_all_permissions():
+                        return view_func(request, *args, **kwargs)
+                else:
+                    # Other modules require just that module permission
+                    if staff.has_module_access(module_name):
+                        return view_func(request, *args, **kwargs)
+            except Staff.DoesNotExist:
+                pass
+            
+            # Access denied
+            error_msg = 'Dashboard requires all module permissions' if module_name == 'dashboard' else f'Access to {module_name} module denied'
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                return JsonResponse({'status': 'error', 'message': error_msg}, status=403)
+            return HttpResponseForbidden(error_msg)
+        
+        return _wrapped
+    return decorator
