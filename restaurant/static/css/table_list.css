@@ -1,0 +1,109 @@
+.table-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.table-card {
+    background: #ffffffcc;
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(23, 162, 184, 0.10);
+    padding: 1.5rem 1.2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    position: relative;
+    min-height: 180px;
+    transition: box-shadow 0.2s, border 0.2s;
+    border: 2px solid #b2ebf2;
+}
+
+.table-card:hover {
+    box-shadow: 0 4px 18px rgba(23, 162, 184, 0.18);
+    border-color: #17a2b8;
+}
+
+.table-card .table-icon {
+    font-size: 2.2rem;
+    color: #17a2b8;
+    margin-bottom: 0.5rem;
+}
+
+.table-card .table-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin-bottom: 0.3rem;
+    color: #138496;
+}
+
+.table-card .table-capacity {
+    font-size: 1rem;
+    margin-bottom: 0.7rem;
+}
+
+.table-card .table-status {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.table-card .table-status.occupied {
+    color: #dc3545;
+}
+
+.table-card .table-status.available {
+    color: #009688;
+}
+
+.table-card .table-actions {
+    margin-top: auto;
+    display: flex;
+    gap: 0.5rem;
+    width: 100%;
+}
+
+.table-card .btn-outline-primary {
+    border: 2px solid #17a2b8;
+    color: #17a2b8;
+    background: #fff;
+}
+
+.table-card .btn-outline-primary:hover {
+    background: #e0f7fa;
+    color: #138496;
+    border-color: #138496;
+}
+
+.table-card .btn-outline-warning {
+    border: 2px solid #ffb300;
+    color: #ffb300;
+    background: #fff;
+}
+
+.table-card .btn-outline-warning:hover {
+    background: #fffde7;
+    color: #ff6f00;
+    border-color: #ff6f00;
+}
+
+.table-card .btn-outline-danger {
+    border: 2px solid #e57373;
+    color: #e57373;
+    background: #fff;
+}
+
+.table-card .btn-outline-danger:hover {
+    background: #ffebee;
+    color: #c62828;
+    border-color: #c62828;
+}
+
+@media (max-width: 600px) {
+    .table-grid {
+        grid-template-columns: 1fr;
+    }
+}
