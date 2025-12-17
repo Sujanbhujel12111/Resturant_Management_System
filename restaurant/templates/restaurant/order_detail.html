@@ -217,7 +217,7 @@
         margin-top: 0.5rem;
         font-size: 1.1rem;
         font-weight: 700;
-        color: #0066cc;
+        color: #17a2b8;
     }
     
     .payment-form-section {
@@ -262,7 +262,7 @@
     
     .form-control:focus, .form-select:focus {
         outline: none;
-        border-color: #0066cc;
+        border-color: #17a2b8;
         box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
     }
     
@@ -280,12 +280,12 @@
     }
     
     .btn-primary {
-        background: #0066cc;
+        background: #17a2b8;
         color: white;
     }
     
     .btn-primary:hover {
-        background: #0052a3;
+        background: #138496;
     }
     
     .btn-success {
@@ -313,8 +313,8 @@
     
     .btn-add-payment {
         background: #e7f5ff;
-        color: #0066cc;
-        border: 1px dashed #0066cc;
+        color: #17a2b8;
+        border: 1px dashed #17a2b8;
     }
     
     .btn-add-payment:hover {
@@ -463,6 +463,8 @@
         }
     }
 </style>
+
+<link rel="stylesheet" href="{% static 'css/order_detail.css' %}">
 
 <div class="page-container">
     <!-- Page Header -->
@@ -1607,4 +1609,9 @@ document.addEventListener('DOMContentLoaded', function(){
     } catch(e){ console.error(e); }
 });
 </script>
+
+<script src="{% static 'js/order_detail_payments.js' %}"></script>
+<script src="{% static 'js/order_detail_items.js' %}"></script>
+<script src="{% static 'js/order_detail_print_close.js' %}"></script>
+<script src="{% static 'js/order_detail_remaining.js' %}"></script>
 {% endblock %}

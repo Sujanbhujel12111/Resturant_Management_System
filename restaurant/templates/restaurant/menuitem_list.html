@@ -1,24 +1,26 @@
 {% extends 'restaurant/base.html' %}
 {% load widget_tweaks %}
+{% load static %}
 
 {% block title %}Menu Management{% endblock %}
 
 {% block content %}
-<div class="container-fluid mt-3 mb-3">
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mb-3 gap-3">
-        <h1 class="h2 mb-0">Menu Management</h1>
-        <div class="gap-2 d-flex">
-            <a href="{% url 'restaurant:menuitem_create' %}" class="btn btn-success btn-sm d-flex align-items-center gap-2">
+<link rel="stylesheet" href="{% static 'css/menuitem_list.css' %}">
+<div class="menuitem-list-container">
+    <div class="menuitem-list-header">
+        <h1 class="menuitem-list-title">Menu Management</h1>
+        <div class="menuitem-list-actions">
+            <a href="{% url 'restaurant:menuitem_create' %}" class="menuitem-list-btn-add">
                 <i class="fas fa-plus"></i> Add New Item
             </a>
-            <a href="{% url 'restaurant:category_list' %}" class="btn btn-primary btn-sm d-flex align-items-center gap-2">
+            <a href="{% url 'restaurant:category_list' %}" class="menuitem-list-btn-categories">
                 <i class="fas fa-bars"></i> Categories
             </a>
         </div>
     </div>
-    <div class="card shadow menuitem-list-card">
+    <div class="card menuitem-list-card">
         <div class="table-responsive">
-            <table class="table table-hover mb-0 align-middle">
+            <table class="table menuitem-table">
                 <thead class="table-light">
                     <tr>
                         <th>Name</th>
@@ -31,22 +33,24 @@
                 <tbody>
                     {% for item in menu_items %}
                     <tr>
-                        <td class="fw-semibold">{{ item.name }}</td>
-                        <td class="text-muted">{{ item.category.name }}</td>
-                        <td>Rs.{{ item.price }}</td>
+                        <td class="menuitem-name">{{ item.name }}</td>
+                        <td class="menuitem-category">{{ item.category.name }}</td>
+                        <td class="menuitem-price">Rs.{{ item.price }}</td>
                         <td>
                             {% if not item.category.is_active %}
-                                <span class="badge bg-warning text-dark">INACTIVE CATEGORY</span>
+                                <span class="menuitem-status-badge menuitem-status-inactive">INACTIVE CATEGORY</span>
                             {% else %}
-                                <span class="badge {% if item.is_available %}bg-success{% else %}bg-danger{% endif %}">
+                                <span class="menuitem-status-badge {% if item.is_available %}menuitem-status-available{% else %}menuitem-status-unavailable{% endif %}">
                                     {{ item.is_available|yesno:"Available,Not Available" }}
                                 </span>
                             {% endif %}
                         </td>
                         <td>
-                            <a href="{% url 'restaurant:menuitem_detail' pk=item.id %}" class="btn btn-link btn-sm text-primary">View</a>
-                            <a href="{% url 'restaurant:menuitem_update' pk=item.id %}" class="btn btn-link btn-sm text-warning">Edit</a>
-                            <button type="button" class="btn btn-link btn-sm text-danger delete-btn" data-url="{% url 'restaurant:menuitem_delete' pk=item.id %}">Delete</button>
+                            <div class="menuitem-actions">
+                                <a href="{% url 'restaurant:menuitem_detail' pk=item.id %}" class="menuitem-btn-view">View</a>
+                                <a href="{% url 'restaurant:menuitem_update' pk=item.id %}" class="menuitem-btn-edit">Edit</a>
+                                <button type="button" class="menuitem-btn-delete delete-btn" data-url="{% url 'restaurant:menuitem_delete' pk=item.id %}">Delete</button>
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}
@@ -76,48 +80,6 @@
         </div>
     </div>
 </div>
-<style>
-    .menuitem-list-card {
-        border-radius: 16px;
-        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-        margin-bottom: 2rem;
-    }
-    @media (max-width: 600px) {
-        .menuitem-list-card {
-            padding: 0.5rem;
-        }
-        .table-responsive {
-            font-size: 0.97rem;
-        }
-        th, td {
-            padding: 0.5rem !important;
-        }
-    }
-</style>
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const deleteButtons = document.querySelectorAll('.delete-btn');
-        const modal = document.getElementById('deleteModal');
-        const deleteForm = document.getElementById('deleteForm');
-        const cancelBtns = document.querySelectorAll('#cancelDelete, #cancelDelete2');
-        const bsModal = new bootstrap.Modal(modal);
 
-        deleteButtons.forEach(btn => {
-            btn.addEventListener('click', function (e) {
-                const url = this.getAttribute('data-url');
-                if (url) {
-                    deleteForm.action = url;
-                    bsModal.show();
-                }
-            });
-        });
-
-        cancelBtns.forEach(btn => {
-            btn.addEventListener('click', function () {
-                bsModal.hide();
-                deleteForm.action = '';
-            });
-        });
-    });
-</script>
+<script src="{% static 'js/menuitem_list.js' %}"></script>
 {% endblock %}

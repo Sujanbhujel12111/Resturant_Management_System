@@ -1,0 +1,301 @@
+/* --- Kitchen Page Styles --- */
+
+.kitchen-header-main h1 {
+    color: #17a2b8;
+    letter-spacing: 0.5px;
+}
+
+.kitchen-header-controls .btn-primary {
+    background: linear-gradient(90deg, #17a2b8 0%, #138496 100%);
+    border: none;
+}
+
+.kitchen-header-controls .btn-primary:hover {
+    background: linear-gradient(90deg, #138496 0%, #17a2b8 100%);
+}
+
+.live-badge {
+    background: #17a2b8 !important;
+    color: #fff !important;
+    border-radius: 8px;
+}
+
+.stat-card {
+    background: #ffffffcc;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(23, 162, 184, 0.10);
+}
+
+.kitchen-column {
+    background: #ffffffcc;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(23, 162, 184, 0.10);
+    border: 2px solid #b2ebf2;
+}
+
+.kitchen-column-header.pending {
+    color: #ffb300;
+    border-bottom: 2px solid #ffb300;
+}
+
+.kitchen-column-header.cooking {
+    color: #e57373;
+    border-bottom: 2px solid #e57373;
+}
+
+.kitchen-column-header.ready {
+    color: #009688;
+    border-bottom: 2px solid #009688;
+}
+
+.order-card {
+    background: #e0f7fa;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(23, 162, 184, 0.10);
+    border: 2px solid #b2ebf2;
+}
+
+.order-card:hover {
+    box-shadow: 0 4px 18px rgba(23, 162, 184, 0.18);
+    border-color: #17a2b8;
+}
+
+.order-id {
+    color: #17a2b8 !important;
+}
+
+.order-amount {
+    color: #138496 !important;
+}
+
+.empty-state-card {
+    background: #e0f7fa;
+    border-radius: 12px;
+    color: #138496;
+}
+
+.kitchen-header {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start;
+    justify-content: space-between;
+}
+
+@media (min-width: 768px) {
+    .kitchen-header {
+        flex-direction: row;
+        align-items: center;
+    }
+}
+
+.kitchen-header-main h1 {
+    font-size: clamp(1.5rem, 5vw, 2.5rem);
+    font-weight: 700;
+}
+
+.kitchen-header-controls {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.live-badge .pulse-dot {
+    width: 0.75rem;
+    height: 0.75rem;
+    background: #fff;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+    display: inline-block;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 1.25rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+    padding: 1.25rem 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    min-height: 90px;
+}
+
+.stat-label {
+    font-size: 0.95rem;
+    color: #888;
+    margin-bottom: 0.5rem;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #212529;
+}
+
+.kitchen-board-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.kitchen-column {
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+    padding: 1rem 0.75rem 1.5rem 0.75rem;
+    min-height: 400px;
+    display: flex;
+    flex-direction: column;
+}
+
+.kitchen-column-header {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    justify-content: space-between;
+}
+
+.status-dot {
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 0.5rem;
+}
+
+.status-dot.pending {
+    background: #ffc107;
+}
+
+.status-dot.cooking {
+    background: #dc3545;
+    animation: pulse 2s infinite;
+}
+
+.status-dot.ready {
+    background: #198754;
+}
+
+.kitchen-column-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.order-card {
+    background: #f8f9fa;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    padding: 1rem 1rem 0.75rem 1rem;
+    transition: box-shadow 0.2s, transform 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-height: 120px;
+    cursor: pointer;
+}
+
+.order-card:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.13);
+    transform: translateY(-2px) scale(1.02);
+}
+
+.order-card-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.order-id {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+.order-type {
+    font-size: 0.85rem;
+    color: #888;
+}
+
+.order-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.order-amount-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: #666;
+}
+
+.order-amount {
+    font-weight: bold;
+    font-size: 1.1rem;
+    color: #000;
+}
+
+.order-items-row {
+    font-size: 0.9rem;
+    color: #555;
+}
+
+.empty-state-card {
+    text-align: center;
+    padding: 3rem 1rem;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+    margin-top: 2rem;
+}
+
+.empty-state-card h2 {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #000;
+    margin-bottom: 0.5rem;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+@media (max-width: 900px) {
+    .kitchen-board-grid {
+        grid-template-columns: 1fr;
+    }
+    .kitchen-column {
+        min-height: 300px;
+    }
+}
+
+@media (max-width: 600px) {
+    .stats-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+    .kitchen-board-grid {
+        grid-template-columns: 1fr;
+    }
+    .kitchen-header-main h1 {
+        font-size: 1.3rem;
+    }
+}

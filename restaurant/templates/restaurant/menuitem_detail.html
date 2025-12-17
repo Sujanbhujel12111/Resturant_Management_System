@@ -1,81 +1,54 @@
 {% extends 'restaurant/base.html' %}
 {% load widget_tweaks %}
+{% load static %}
 
 {% block title %}{{ menu_item.name }} - Details{% endblock %}
 
 {% block content %}
-<div class="container-fluid px-3 py-5">
-    <div class="mx-auto" style="max-width: 40rem;">
-        <div class="mb-4">
-            <a href="{% url 'restaurant:menuitem_list' %}" class="btn btn-link text-primary d-flex align-items-center gap-2">
-                <svg style="width: 1.25rem; height: 1.25rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-                </svg>
-                Back to Menu List
-            </a>
-        </div>
-        <div class="card shadow menuitem-detail-card">
-            <div class="card-body p-4">
-                <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3 mb-3">
-                    <h1 class="h2 fw-bold text-dark mb-0">{{ menu_item.name }}</h1>
-                    <span class="px-3 py-1 rounded-pill fw-bold {% if menu_item.is_available %}bg-success text-white{% else %}bg-danger text-white{% endif %}">
+<link rel="stylesheet" href="{% static 'css/menuitem_detail.css' %}">
+<div class="menuitem-detail-container">
+    <div class="menuitem-detail-wrapper">
+        <a href="{% url 'restaurant:menuitem_list' %}" class="menuitem-detail-back-link">
+            <i class="fas fa-arrow-left"></i>Back to Menu List
+        </a>
+        <div class="menuitem-detail-card">
+            <div class="menuitem-detail-card-body">
+                <div class="menuitem-detail-header">
+                    <h1 class="menuitem-detail-title">{{ menu_item.name }}</h1>
+                    <span class="menuitem-detail-status-badge {% if menu_item.is_available %}menuitem-detail-status-available{% else %}menuitem-detail-status-unavailable{% endif %}">
                         {{ menu_item.is_available|yesno:"Available,Not Available" }}
                     </span>
                 </div>
-                <div class="mb-4">
-                    <h3 class="h5 fw-semibold text-dark">Description</h3>
-                    <p class="mt-1 text-secondary">{{ menu_item.description|default:"No description available" }}</p>
+                <div class="menuitem-detail-section">
+                    <h3 class="menuitem-detail-section-title">Description</h3>
+                    <p class="menuitem-detail-description">{{ menu_item.description|default:"No description available" }}</p>
                 </div>
-                <div class="row g-4 mb-2">
-                    <div class="col-12 col-md-6">
-                        <h3 class="h6 fw-semibold text-dark">Category</h3>
-                        <p class="mt-1 text-secondary">{{ menu_item.category.name }}</p>
+                <div class="menuitem-detail-grid">
+                    <div class="menuitem-detail-info">
+                        <span class="menuitem-detail-label">Category</span>
+                        <span class="menuitem-detail-value">{{ menu_item.category.name }}</span>
                     </div>
-                    <div class="col-12 col-md-6">
-                        <h3 class="h6 fw-semibold text-dark">Price</h3>
-                        <p class="mt-1 text-secondary">Rs.{{ menu_item.price }}</p>
+                    <div class="menuitem-detail-info">
+                        <span class="menuitem-detail-label">Price</span>
+                        <span class="menuitem-detail-value">Rs.{{ menu_item.price }}</span>
                     </div>
                 </div>
                 {% if menu_item.preparation_area %}
-                <div class="mb-2">
-                    <h3 class="h6 fw-semibold text-dark">Preparation Area</h3>
-                    <p class="mt-1 text-secondary">{{ menu_item.preparation_area }}</p>
+                <div class="menuitem-detail-section">
+                    <span class="menuitem-detail-label">Preparation Area</span>
+                    <span class="menuitem-detail-value">{{ menu_item.preparation_area }}</span>
                 </div>
                 {% endif %}
-                <div class="mt-4 d-flex gap-2 justify-content-center">
-                    <a href="{% url 'restaurant:menuitem_update' pk=menu_item.id %}" class="btn btn-warning d-inline-flex align-items-center px-4">
-                        <svg style="width: 1.25rem; height: 1.25rem;" class="me-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                        </svg>
-                        Edit Item
+                <div class="menuitem-detail-actions">
+                    <a href="{% url 'restaurant:menuitem_update' pk=menu_item.id %}" class="menuitem-detail-btn menuitem-detail-btn-edit">
+                        <i class="fas fa-edit"></i>Edit Item
                     </a>
-                    <a href="{% url 'restaurant:menuitem_delete' pk=menu_item.id %}" class="btn btn-danger d-inline-flex align-items-center px-4">
-                        <svg style="width: 1.25rem; height: 1.25rem;" class="me-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                        </svg>
-                        Delete Item
+                    <a href="{% url 'restaurant:menuitem_delete' pk=menu_item.id %}" class="menuitem-detail-btn menuitem-detail-btn-delete">
+                        <i class="fas fa-trash"></i>Delete Item
                     </a>
                 </div>
             </div>
         </div>
     </div>
 </div>
-<style>
-    .menuitem-detail-card {
-        border-radius: 16px;
-        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-        margin-bottom: 2rem;
-    }
-    @media (max-width: 600px) {
-        .menuitem-detail-card {
-            padding: 0.5rem;
-        }
-        .card-body {
-            padding: 1rem !important;
-        }
-        h1.h2 {
-            font-size: 1.3rem;
-        }
-    }
-</style>
 {% endblock %}

@@ -1,4 +1,5 @@
 {% extends 'home/base.html' %}
+{% load static %}
 
 {% block title %}Dashboard - Restaurant Management System{% endblock %}
 
@@ -119,10 +120,10 @@
         <!-- Menu Management Card -->
         <div class="col-12 col-sm-6 col-lg-3">
             <div class="card h-100 border-0 shadow-sm overflow-hidden hover-shadow" style="transition: all 0.3s ease;">
-                <div style="height: 4px; background: linear-gradient(90deg, #007bff, #0056b3);"></div>
+                <div style="height: 4px; background: linear-gradient(90deg, #17a2b8, #138496);"></div>
                 <div class="card-body text-center">
-                    <div class="mb-3 p-3" style="background: rgba(0, 123, 255, 0.1); border-radius: 10px; width: fit-content; margin-left: auto; margin-right: auto;">
-                        <i class="fas fa-utensils" style="font-size: 2rem; color: #007bff;"></i>
+                    <div class="mb-3 p-3" style="background: rgba(23, 162, 184, 0.1); border-radius: 10px; width: fit-content; margin-left: auto; margin-right: auto;">
+                        <i class="fas fa-utensils" style="font-size: 2rem; color: #17a2b8;"></i>
                     </div>
                     <h5 class="card-title fw-bold mb-2" style="color: #1a1a2e;">Menu Management</h5>
                     <p class="card-text text-muted small mb-3">Add, edit or manage menu items</p>
@@ -259,27 +260,5 @@
     </div>
 </div>
 
-<style>
-    .hover-shadow {
-        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075) !important;
-    }
-    
-    .hover-shadow:hover {
-        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
-        transform: translateY(-2px);
-    }
-    
-    .list-group-item:hover {
-        background-color: #f8f9fa;
-    }
-    
-    .progress {
-        background-color: #e9ecef;
-    }
-    
-    .badge {
-        font-weight: 600;
-        letter-spacing: 0.3px;
-    }
-</style>
+<link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
 {% endblock %}

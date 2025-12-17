@@ -1,9 +1,11 @@
 {% extends 'restaurant/base.html' %}
 {% load widget_tweaks %}
+{% load static %}
 
 {% block title %}Place Delivery Order{% endblock %}
 
 {% block content %}
+<link rel="stylesheet" href="{% static 'css/place_order_variants.css' %}">
 <style>
     /* Responsive and interactive styles */
     .place-order-container {
@@ -497,10 +499,7 @@
         </form>
     </div>
 </div>
-<script id="menu-items-data" type="application/json">
-    // Menu items data - passed from Django template
-    // Remove json_script block
-</script>
+<script src="{% static 'js/place_order_variants.js' %}"></script>
 <script>
     const menuItems = JSON.parse('{{ menu_items_json|safe }}');
     let orderData = {};

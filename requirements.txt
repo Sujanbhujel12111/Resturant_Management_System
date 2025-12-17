@@ -1,3 +1,7 @@
 Django>=3.2
 pytz
 sqlparse
+django-widget-tweaks
+qrcode
+Pillow
+pandas

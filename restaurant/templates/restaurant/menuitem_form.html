@@ -1,83 +1,68 @@
 {% extends 'restaurant/base.html' %}
 {% load widget_tweaks %}
+{% load static %}
 
 {% block title %}{{ form.instance.pk|yesno:"Edit Menu Item,Add New Menu Item" }}{% endblock %}
 
 {% block content %}
-<div class="container-fluid px-3 py-4">
-    <div class="row justify-content-center">
-        <div class="col-12 col-md-8 col-lg-6">
-            <div class="mb-4">
-                <a href="{% url 'restaurant:menuitem_list' %}" class="btn btn-link text-primary d-flex align-items-center gap-2">
-                    <svg style="width: 1.25rem; height: 1.25rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-                    </svg>
-                    Back to Menu List
-                </a>
-            </div>
-            <div class="card shadow menuitem-form-card">
-                <div class="card-body p-4">
-                    <h1 class="h3 fw-bold text-dark mb-4 text-center">
-                        {{ form.instance.pk|yesno:"Edit Menu Item,Add New Menu Item" }}
-                    </h1>
-                    <form method="post" enctype="multipart/form-data" class="needs-validation" novalidate>
-                        {% csrf_token %}
-                        {% for field in form %}
-                        <div class="mb-3">
-                            <label for="{{ field.id_for_label }}" class="form-label fw-semibold text-dark">
-                                {{ field.label }}
-                            </label>
-                            <div>
-                                {% if field.widget.input_type == 'checkbox' %}
-                                    <div class="form-check">
-                                        {{ field|add_class:'form-check-input' }}
-                                        <label class="form-check-label" for="{{ field.id_for_label }}">
-                                            {{ field.label }}
-                                        </label>
-                                    </div>
-                                {% elif field.widget.input_type == 'textarea' %}
-                                    {{ field|add_class:'form-control' }}
-                                {% elif field.widget.input_type == 'select' %}
-                                    {{ field|add_class:'form-select' }}
-                                {% else %}
-                                    {{ field|add_class:'form-control' }}
-                                {% endif %}
-                            </div>
-                            {% if field.help_text %}
-                            <small class="form-text text-muted d-block mt-1">{{ field.help_text|safe }}</small>
-                            {% endif %}
-                            {% if field.errors %}
-                            <div class="text-danger small mt-1">
-                                {{ field.errors }}
-                            </div>
+<link rel="stylesheet" href="{% static 'css/menuitem_form.css' %}">
+<div class="menuitem-form-container">
+    <div class="menuitem-form-wrapper">
+        <a href="{% url 'restaurant:menuitem_list' %}" class="menuitem-form-back-link">
+            <i class="fas fa-arrow-left"></i>Back to Menu List
+        </a>
+        <div class="menuitem-form-card">
+            <div class="menuitem-form-card-body">
+                <h1 class="menuitem-form-title">
+                    {{ form.instance.pk|yesno:"Edit Menu Item,Add New Menu Item" }}
+                </h1>
+                <form method="post" enctype="multipart/form-data" class="needs-validation" novalidate>
+                    {% csrf_token %}
+                    {% for field in form %}
+                    <div class="menuitem-form-group">
+                        <label for="{{ field.id_for_label }}" class="menuitem-form-label">
+                            {{ field.label }}
+                        </label>
+                        <div>
+                            {% if field.widget.input_type == 'checkbox' %}
+                                <div class="menuitem-form-check">
+                                    {{ field|add_class:'menuitem-form-check-input' }}
+                                    <label class="menuitem-form-check-label" for="{{ field.id_for_label }}">
+                                        {{ field.label }}
+                                    </label>
+                                </div>
+                            {% elif field.widget.input_type == 'textarea' %}
+                                {{ field|add_class:'menuitem-form-textarea' }}
+                            {% elif field.widget.input_type == 'select' %}
+                                {{ field|add_class:'menuitem-form-select' }}
+                            {% else %}
+                                {{ field|add_class:'menuitem-form-input' }}
                             {% endif %}
                         </div>
-                        {% endfor %}
-                        <div class="d-flex gap-3 pt-3 mt-4 border-top justify-content-center">
-                            <button type="submit" class="btn btn-primary d-flex align-items-center px-4">
-                                <svg class="me-2" style="width: 1.25rem; height: 1.25rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                                </svg>
-                                {{ form.instance.pk|yesno:"Update Item,Create Item" }}
-                            </button>
-                            <a href="{% url 'restaurant:menuitem_list' %}" class="btn btn-secondary d-flex align-items-center px-4">
-                                <svg class="me-2" style="width: 1.25rem; height: 1.25rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                                </svg>
-                                Cancel
-                            </a>
+                        {% if field.help_text %}
+                        <small class="menuitem-form-help">{{ field.help_text|safe }}</small>
+                        {% endif %}
+                        {% if field.errors %}
+                        <div class="menuitem-form-error">
+                            {{ field.errors }}
                         </div>
-                    </form>
-                </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    <div class="menuitem-form-actions">
+                        <button type="submit" class="menuitem-form-btn menuitem-form-btn-submit">
+                            <i class="fas fa-check"></i>{{ form.instance.pk|yesno:"Update Item,Create Item" }}
+                        </button>
+                        <a href="{% url 'restaurant:menuitem_list' %}" class="menuitem-form-btn menuitem-form-btn-cancel">
+                            <i class="fas fa-times"></i>Cancel
+                        </a>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
 </div>
-<style>
-    .menuitem-form-card {
-        border-radius: 16px;
-        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-        margin-bottom: 2rem;
+{% endblock %}
     }
     @media (max-width: 600px) {
         .menuitem-form-card {

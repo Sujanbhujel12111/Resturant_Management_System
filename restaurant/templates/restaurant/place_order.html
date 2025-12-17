@@ -1,10 +1,12 @@
 {# Django template #}
 {% extends 'restaurant/base.html' %}
 {% load widget_tweaks %}
+{% load static %}
 
 {% block title %}Place Order - Table {{ table.number }}{% endblock %}
 
 {% block content %}
+<link rel="stylesheet" href="{% static 'css/place_order.css' %}">
 <style>
     /* Modern teal/blue gradient theme and improved UI */
     .place-order-container {
@@ -440,9 +442,9 @@
                 </div>
             </div>
         </form>
-    </div>
 </div>
 
+<script src="{% static 'js/place_order.js' %}"></script>
 <script>
     // Menu items data - passed from Django template
     const menuItems = JSON.parse('{{ menu_items_json|safe }}');

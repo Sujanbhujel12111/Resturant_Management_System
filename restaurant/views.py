@@ -1408,7 +1408,7 @@ def export_orders_pdf(request):
         'CustomTitle',
         parent=styles['Heading1'],
         fontSize=18,
-        textColor=colors.HexColor('#0d6efd'),
+        textColor=colors.HexColor('#17a2b8'),
         spaceAfter=6,
         alignment=TA_CENTER,
         fontName='Helvetica-Bold'
@@ -1483,7 +1483,7 @@ def export_orders_pdf(request):
     table = Table(table_data, colWidths=[1.0*inch, 1.2*inch, 0.9*inch, 0.9*inch, 0.8*inch, 0.7*inch, 1.0*inch])
     table.setStyle(TableStyle([
         # Header row style
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0d6efd')),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#17a2b8')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
         ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),

@@ -1,5 +1,7 @@
 {% extends 'restaurant/base.html' %}
 {% load custom_filters %}
+{% load static %}
+
 {% block title %}Orders - Restaurant Management System{% endblock %}
 
 {% block content %}
@@ -174,6 +176,7 @@
     {% endif %}
 </div>
 
+<script src="{% static 'js/order_list.js' %}"></script>
 <script>
     function filterOrders() {
         const searchTerm = document.getElementById('orderSearch').value.toLowerCase();
