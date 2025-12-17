@@ -1,0 +1,20 @@
+{% extends 'restaurant/base.html' %}
+{% load static %}
+
+{% block title %}Close Order{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-10">
+    <h1 class="text-4xl fw-bold mb-4">Close Order</h1>
+    <div class="bg-white p-6 rounded shadow">
+        <form method="post">
+            {% csrf_token %}
+            <p class="h4">Are you sure you want to close this order?</p>
+            <div class="mt-3">
+                <button type="submit" class="py-2 px-3 bg-danger text-white rounded bg-danger">Close Order</button>
+                <a href="{% url 'restaurant:order_list' %}" class="py-2 px-3 bg-light0 text-white rounded bg-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
