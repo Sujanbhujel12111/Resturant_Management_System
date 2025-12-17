@@ -1,0 +1,214 @@
+/* Category List Template Styles - Teal Theme */
+
+.category-list-container {
+    background: #f8f9fa;
+    min-height: 100vh;
+}
+
+.category-list-card {
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(23, 162, 184, 0.1);
+    border: none;
+    overflow: hidden;
+}
+
+.category-list-header {
+    padding: 1.5rem;
+    border-bottom: 2px solid #e9ecef;
+    background: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+}
+
+.category-list-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #0c5460;
+    margin: 0;
+}
+
+.category-list-btn-add {
+    background: #28a745;
+    border: none;
+    color: white;
+    padding: 0.6rem 1.25rem;
+    border-radius: 8px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.3s ease;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.category-list-btn-add:hover {
+    background: #218838;
+    box-shadow: 0 4px 12px rgba(33, 136, 56, 0.3);
+    color: white;
+    text-decoration: none;
+}
+
+.category-table {
+    margin-bottom: 0;
+}
+
+.category-table thead {
+    background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+}
+
+.category-table thead th {
+    color: white;
+    font-weight: 600;
+    padding: 1rem 1.5rem;
+    border: none;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+}
+
+.category-table tbody tr {
+    border-bottom: 1px solid #e9ecef;
+    transition: background-color 0.2s ease;
+}
+
+.category-table tbody tr:hover {
+    background-color: #f0f8f9;
+}
+
+.category-table td {
+    padding: 1rem 1.5rem;
+    vertical-align: middle;
+}
+
+.category-name {
+    font-weight: 600;
+    color: #0c5460;
+    font-size: 1rem;
+}
+
+.category-status-badge {
+    padding: 0.4rem 0.8rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: inline-block;
+}
+
+.category-status-active {
+    background: #d4edda;
+    color: #155724;
+}
+
+.category-status-inactive {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.category-actions {
+    display: flex;
+    gap: 1rem;
+}
+
+.category-btn-edit,
+.category-btn-delete {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: all 0.3s ease;
+}
+
+.category-btn-edit {
+    color: #ffc107;
+    width: 32px;
+    height: 32px;
+}
+
+.category-btn-edit:hover {
+    background: #fff3cd;
+}
+
+.category-btn-delete {
+    color: #dc3545;
+    width: 32px;
+    height: 32px;
+}
+
+.category-btn-delete:hover {
+    background: #f8d7da;
+}
+
+.category-empty-state {
+    text-align: center;
+    padding: 3rem 1.5rem;
+    color: #6c757d;
+}
+
+.category-empty-state-icon {
+    font-size: 3rem;
+    color: #17a2b8;
+    margin-bottom: 1rem;
+    opacity: 0.3;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .category-list-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .category-list-btn-add {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .category-table {
+        font-size: 0.9rem;
+    }
+
+    .category-table th,
+    .category-table td {
+        padding: 0.75rem;
+    }
+
+    .category-name {
+        font-size: 0.95rem;
+    }
+}
+
+@media (max-width: 600px) {
+    .category-list-header {
+        padding: 1rem;
+    }
+
+    .category-table {
+        font-size: 0.85rem;
+    }
+
+    .category-table th,
+    .category-table td {
+        padding: 0.5rem;
+    }
+
+    .category-list-title {
+        font-size: 1.25rem;
+    }
+
+    .category-actions {
+        gap: 0.5rem;
+    }
+
+    .category-btn-edit,
+    .category-btn-delete {
+        width: 28px;
+        height: 28px;
+    }
+}
