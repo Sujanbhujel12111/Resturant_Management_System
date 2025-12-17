@@ -1,0 +1,104 @@
+{% extends 'restaurant/base.html' %}
+{% load static %}
+
+{% block title %}Kitchen - Live Order Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-3 p-md-4" style="background: linear-gradient(135deg, #e0f7fa 0%, #b2ebf2 50%, #80deea 100%); min-height: 100vh;">
+    <!-- Header with Controls -->
+    <div class="kitchen-header mb-4">
+        <div class="kitchen-header-main">
+            <h1 class="mb-2">🍳 Kitchen Station</h1>
+            <p class="text-muted mb-0">Real-time order preparation tracking</p>
+        </div>
+        <div class="kitchen-header-controls">
+            <button onclick="location.reload()" class="btn btn-primary btn-sm d-flex align-items-center gap-2">
+                <i class="fas fa-sync"></i>
+                <span class="d-none d-sm-inline">Refresh</span>
+            </button>
+            <div class="badge bg-success d-flex align-items-center gap-2 live-badge">
+                <span class="pulse-dot"></span>
+                <span class="d-none d-sm-inline">Live</span>
+            </div>
+        </div>
+    </div>
+
+    {% if orders %}
+    <!-- Order Status Summary -->
+    <div class="stats-grid mb-4">
+        <div class="stat-card">
+            <div class="stat-label">Total Orders</div>
+            <div class="stat-value" id="totalOrders">{{ orders|length }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Pending</div>
+            <div class="stat-value" id="pendingCount">0</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Cooking</div>
+            <div class="stat-value" id="cookingCount">0</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Ready</div>
+            <div class="stat-value" id="readyCount">0</div>
+        </div>
+    </div>
+
+    <!-- Kitchen Board - Responsive Kanban -->
+    <div class="kitchen-board-grid">
+        <div class="kitchen-column">
+            <div class="kitchen-column-header pending">
+                <span class="status-dot pending"></span> Pending
+                <span class="badge bg-warning text-dark" id="pendingBadge">0</span>
+            </div>
+            <div id="pending-column" class="kitchen-column-list"></div>
+        </div>
+        <div class="kitchen-column">
+            <div class="kitchen-column-header cooking">
+                <span class="status-dot cooking"></span> Cooking
+                <span class="badge bg-danger" id="cookingBadge">0</span>
+            </div>
+            <div id="cooking-column" class="kitchen-column-list"></div>
+        </div>
+        <div class="kitchen-column">
+            <div class="kitchen-column-header ready">
+                <span class="status-dot ready"></span> Ready
+                <span class="badge bg-success" id="readyBadge">0</span>
+            </div>
+            <div id="ready-column" class="kitchen-column-list"></div>
+        </div>
+    </div>
+
+    <script type="application/json" id="orders-json">
+    [
+        {% for order in orders %}
+        {
+            "id": "{{ order.id }}",
+            "order_id": "{{ order.order_id }}",
+            "type": "{% if order.table %}Table #{{ order.table.number }}{% elif order.order_type == 'takeaway' %}Takeaway{% else %}Delivery{% endif %}",
+            "amount": "{{ order.total_amount }}",
+            "status": "{{ order.status }}",
+            "items": "{{ order.items.count }}"
+        }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ]
+    </script>
+    <script src="{% static 'js/kitchen.js' %}"></script>
+    <link rel="stylesheet" href="{% static 'css/kitchen.css' %}">
+
+    {% else %}
+    <!-- Empty State -->
+    <div class="card empty-state-card">
+        <svg class="mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+        </svg>
+        <h2>No Active Orders</h2>
+        <p class="text-muted">All orders have been completed! Great job! 🎉</p>
+        <button onclick="location.reload()" class="btn btn-primary">
+            <i class="fas fa-sync"></i> Check for New Orders
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}
