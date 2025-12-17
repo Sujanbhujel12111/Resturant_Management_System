@@ -1,0 +1,85 @@
+{% extends 'restaurant/base.html' %}
+{% load widget_tweaks %}
+{% load static %}
+
+{% block title %}Menu Management{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{% static 'css/menuitem_list.css' %}">
+<div class="menuitem-list-container">
+    <div class="menuitem-list-header">
+        <h1 class="menuitem-list-title">Menu Management</h1>
+        <div class="menuitem-list-actions">
+            <a href="{% url 'restaurant:menuitem_create' %}" class="menuitem-list-btn-add">
+                <i class="fas fa-plus"></i> Add New Item
+            </a>
+            <a href="{% url 'restaurant:category_list' %}" class="menuitem-list-btn-categories">
+                <i class="fas fa-bars"></i> Categories
+            </a>
+        </div>
+    </div>
+    <div class="card menuitem-list-card">
+        <div class="table-responsive">
+            <table class="table menuitem-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>Name</th>
+                        <th>Category</th>
+                        <th>Price</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in menu_items %}
+                    <tr>
+                        <td class="menuitem-name">{{ item.name }}</td>
+                        <td class="menuitem-category">{{ item.category.name }}</td>
+                        <td class="menuitem-price">Rs.{{ item.price }}</td>
+                        <td>
+                            {% if not item.category.is_active %}
+                                <span class="menuitem-status-badge menuitem-status-inactive">INACTIVE CATEGORY</span>
+                            {% else %}
+                                <span class="menuitem-status-badge {% if item.is_available %}menuitem-status-available{% else %}menuitem-status-unavailable{% endif %}">
+                                    {{ item.is_available|yesno:"Available,Not Available" }}
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="menuitem-actions">
+                                <a href="{% url 'restaurant:menuitem_detail' pk=item.id %}" class="menuitem-btn-view">View</a>
+                                <a href="{% url 'restaurant:menuitem_update' pk=item.id %}" class="menuitem-btn-edit">Edit</a>
+                                <button type="button" class="menuitem-btn-delete delete-btn" data-url="{% url 'restaurant:menuitem_delete' pk=item.id %}">Delete</button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="modal fade" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirm Deletion</h5>
+                    <button type="button" class="btn-close" id="cancelDelete" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to delete this item? This action cannot be undone.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="cancelDelete2">Cancel</button>
+                    <form id="deleteForm" method="post" action="" style="display: inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger">Delete</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="{% static 'js/menuitem_list.js' %}"></script>
+{% endblock %}
