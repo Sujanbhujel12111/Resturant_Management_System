@@ -1,0 +1,76 @@
+{% extends 'restaurant/base.html' %}
+{% load widget_tweaks %}
+{% load static %}
+
+{% block title %}{{ form.instance.pk|yesno:"Edit Menu Item,Add New Menu Item" }}{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{% static 'css/menuitem_form.css' %}">
+<div class="menuitem-form-container">
+    <div class="menuitem-form-wrapper">
+        <a href="{% url 'restaurant:menuitem_list' %}" class="menuitem-form-back-link">
+            <i class="fas fa-arrow-left"></i>Back to Menu List
+        </a>
+        <div class="menuitem-form-card">
+            <div class="menuitem-form-card-body">
+                <h1 class="menuitem-form-title">
+                    {{ form.instance.pk|yesno:"Edit Menu Item,Add New Menu Item" }}
+                </h1>
+                <form method="post" enctype="multipart/form-data" class="needs-validation" novalidate>
+                    {% csrf_token %}
+                    {% for field in form %}
+                    <div class="menuitem-form-group">
+                        <label for="{{ field.id_for_label }}" class="menuitem-form-label">
+                            {{ field.label }}
+                        </label>
+                        <div>
+                            {% if field.widget.input_type == 'checkbox' %}
+                                <div class="menuitem-form-check">
+                                    {{ field|add_class:'menuitem-form-check-input' }}
+                                    <label class="menuitem-form-check-label" for="{{ field.id_for_label }}">
+                                        {{ field.label }}
+                                    </label>
+                                </div>
+                            {% elif field.widget.input_type == 'textarea' %}
+                                {{ field|add_class:'menuitem-form-textarea' }}
+                            {% elif field.widget.input_type == 'select' %}
+                                {{ field|add_class:'menuitem-form-select' }}
+                            {% else %}
+                                {{ field|add_class:'menuitem-form-input' }}
+                            {% endif %}
+                        </div>
+                        {% if field.help_text %}
+                        <small class="menuitem-form-help">{{ field.help_text|safe }}</small>
+                        {% endif %}
+                        {% if field.errors %}
+                        <div class="menuitem-form-error">
+                            {{ field.errors }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    <div class="menuitem-form-actions">
+                        <button type="submit" class="menuitem-form-btn menuitem-form-btn-submit">
+                            <i class="fas fa-check"></i>{{ form.instance.pk|yesno:"Update Item,Create Item" }}
+                        </button>
+                        <a href="{% url 'restaurant:menuitem_list' %}" class="menuitem-form-btn menuitem-form-btn-cancel">
+                            <i class="fas fa-times"></i>Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+    }
+    @media (max-width: 600px) {
+        .menuitem-form-card {
+            padding: 0.5rem;
+        }
+        .card-body {
+            padding: 1rem !important;
+        }
+    }
+</style>
+{% endblock %}
