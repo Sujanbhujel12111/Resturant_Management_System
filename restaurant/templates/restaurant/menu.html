@@ -1,0 +1,111 @@
+{% extends 'restaurant/base.html' %}
+{% load widget_tweaks %}
+{% load static %}
+
+{% block title %}Menu - Restaurant Management System{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{% static 'css/menu.css' %}">
+<div class="menu-container">
+    <!-- Header Section -->
+    <div class="mb-4">
+        <h1 class="menu-header">Restaurant Menu</h1>
+        <p class="text-muted">Browse our delicious selection of dishes</p>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="menu-search-container">
+        <div class="d-flex gap-2 flex-column flex-sm-row">
+            <input type="text" 
+                   id="menuSearch" 
+                   class="form-control menu-search-input flex-grow-1"
+                   placeholder="Search menu items..." 
+                   data-search-box>
+            <button onclick="filterMenu()" class="menu-search-btn">Search</button>
+        </div>
+    </div>
+
+    <!-- Categories and Items -->
+    <div class="menu-categories">
+        {% for category in categories %}
+        <section class="category-section">
+            <!-- Category Header with status -->
+            <div class="category-header">
+                <div class="category-title">
+                    <h2 class="mb-0 d-flex align-items-center gap-2">
+                        {{ category.name }}
+                        {% if not category.is_active %}
+                            <span class="badge bg-danger">INACTIVE</span>
+                        {% endif %}
+                    </h2>
+                </div>
+                <span class="badge bg-secondary">{{ category.menuitem_set.count }} items</span>
+            </div>
+
+            <!-- Items Grid -->
+            <div class="menu-grid">
+                {% for item in category.menuitem_set.all %}
+                <div class="menu-card card h-100 hover-lift {% if not item.is_available or not category.is_active %}menu-card-unavailable{% endif %}">
+                    {% if item.image %}
+                    <div class="menu-card-image">
+                        <img src="{{ item.image.url }}" 
+                             alt="{{ item.name }}" 
+                             loading="lazy"
+                             class="img-cover w-100 h-100">
+                    </div>
+                    {% else %}
+                    <div class="menu-card-image menu-card-image-placeholder">
+                        <svg class="text-muted" style="width: 3rem; height: 3rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                        </svg>
+                    </div>
+                    {% endif %}
+
+                    <div class="menu-card-body">
+                        <h5 class="menu-card-title">
+                            {{ item.name }}
+                            {% if not item.is_available %}
+                                <span class="menu-card-out-badge">OUT</span>
+                            {% endif %}
+                        </h5>
+                        <p class="menu-card-description">
+                            {{ item.description|default:"Delicious item"|truncatewords:20 }}
+                        </p>
+                        <!-- Price and Badge -->
+                        <div class="menu-card-price-section">
+                            <span class="menu-card-price">Rs.{{ item.price }}</span>
+                            {% if item.is_vegetarian %}
+                            <span class="menu-card-veg-badge">🌱 Veg</span>
+                            {% endif %}
+                        </div>
+                        <!-- Action Button -->
+                        <a href="{% url 'restaurant:add_to_order' menu_item_id=item.id %}" 
+                            class="menu-card-btn {% if not item.is_available or not category.is_active %}disabled{% endif %}">
+                            <i class="fas fa-plus me-2"></i>
+                            {% if not item.is_available or not category.is_active %}
+                                Not Available
+                            {% else %}
+                                Add to Order
+                            {% endif %}
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+        {% endfor %}
+    </div>
+
+    <!-- No Items Message -->
+    {% if not categories %}
+    <div class="menu-empty-state">
+        <svg class="mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+        </svg>
+        <p>No menu items available at the moment</p>
+    </div>
+    {% endif %}
+</div>
+
+<script src="{% static 'js/menu.js' %}"></script>
+{% endblock %}
