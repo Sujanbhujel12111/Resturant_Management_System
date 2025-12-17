@@ -1,0 +1,342 @@
+{% extends 'restaurant/base.html' %}
+{% load custom_filters %}
+{% load static %}
+
+{% block title %}Orders - Restaurant Management System{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-3 p-md-4">
+    <!-- Header with Actions -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3 mb-4">
+        <div>
+            <h1 class="display-6 mb-2">Order Management</h1>
+            <p class="text-muted">View and manage all orders</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button id="bulkCancelBtn" class="btn btn-danger" style="display: none;" onclick="bulkCancelOrders()">
+                <svg class="me-2" style="width: 1.25rem; height: 1.25rem; display: inline;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+                Cancel Selected
+            </button>
+            <a href="{% url 'restaurant:place_order_takeaway' %}" class="btn btn-primary">
+                <svg class="me-2" style="width: 1.25rem; height: 1.25rem; display: inline;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                New Order
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters and Search -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-12 col-md-4">
+                    <input type="text" 
+                           id="orderSearch" 
+                           class="form-control" 
+                           placeholder="Search by order ID..." 
+                           onkeyup="filterOrders()">
+                </div>
+                <div class="col-12 col-sm-6 col-md-4">
+                    <select id="statusFilter" 
+                            class="form-select" 
+                            onchange="filterOrders()">
+                        <option value="">All Statuses</option>
+                        <option value="pending">Pending</option>
+                        <option value="cooking">Cooking</option>
+                        <option value="ready">Ready</option>
+                        <option value="served">Served</option>
+                        <option value="on the way">On The Way</option>
+                    </select>
+                </div>
+                <div class="col-12 col-sm-6 col-md-4">
+                    <select id="typeFilter" 
+                            class="form-select" 
+                            onchange="filterOrders()">
+                        <option value="">All Types</option>
+                        <option value="table">Table Order</option>
+                        <option value="takeaway">Takeaway</option>
+                        <option value="delivery">Delivery</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Desktop Table View -->
+    <div class="card">
+        <div class="table-responsive">
+            <table id="ordersTable" class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 40px;">
+                            <input type="checkbox" id="selectAll" class="form-check-input" onchange="toggleSelectAll(this)">
+                        </th>
+                        <th>Order ID</th>
+                        <th>Type</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                        <th>Payment</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="ordersBody">
+                    {% for order in orders %}
+                    {% with total_payments=order.payments.all|sum_payments %}
+                    {% with required_amount=order.total_amount|add:order.delivery_charge|add:0 %}
+                    <tr data-order-id="{{ order.id }}" data-order-number="{{ order.order_id }}" data-has-payment="{% if total_payments > 0 %}true{% else %}false{% endif %}">
+                        <td>
+                            <input type="checkbox" class="form-check-input order-checkbox" value="{{ order.id }}" onchange="updateBulkActionButton()">
+                        </td>
+                        <td>
+                            <span class="font-monospace fw-bold">#{{ order.order_id }}</span>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary">
+                                {% if order.table %}
+                                    Table #{{ order.table.number }}
+                                {% elif order.order_type == 'takeaway' %}
+                                    🛍️ Takeaway
+                                {% elif order.order_type == 'delivery' %}
+                                    🚚 Delivery
+                                {% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="fw-bold">
+                                {% if order.order_type == 'delivery' %}
+                                    Rs.{{ order.total_amount|add:order.delivery_charge }}
+                                {% else %}
+                                    Rs.{{ order.total_amount }}
+                                {% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            <form method="post" action="{% url 'restaurant:update_order_status' pk=order.id %}" class="d-inline">
+                                {% csrf_token %}
+                                <select name="status" onchange="this.form.submit()" class="form-select form-select-sm" style="display: inline-block; width: auto;">
+                                    {% if order.order_type == 'delivery' %}
+                                        <option value="pending" {% if order.status == 'pending' %}selected{% endif %}>Pending</option>
+                                        <option value="preparing" {% if order.status == 'preparing' %}selected{% endif %}>Cooking</option>
+                                        <option value="ready" {% if order.status == 'ready' %}selected{% endif %}>Ready</option>
+                                        <option value="on_the_way" {% if order.status == 'on_the_way' %}selected{% endif %}>On The Way</option>
+                                    {% elif order.order_type == 'takeaway' %}
+                                        <option value="pending" {% if order.status == 'pending' %}selected{% endif %}>Pending</option>
+                                        <option value="preparing" {% if order.status == 'preparing' %}selected{% endif %}>Cooking</option>
+                                        <option value="ready_to_pickup" {% if order.status == 'ready_to_pickup' %}selected{% endif %}>Ready to Pickup</option>
+                                    {% else %}
+                                        <option value="pending" {% if order.status == 'pending' %}selected{% endif %}>Pending</option>
+                                        <option value="preparing" {% if order.status == 'preparing' %}selected{% endif %}>Cooking</option>
+                                        <option value="ready" {% if order.status == 'ready' %}selected{% endif %}>Ready</option>
+                                        <option value="served" {% if order.status == 'served' %}selected{% endif %}>Served</option>
+                                    {% endif %}
+                                </select>
+                            </form>
+                        </td>
+                        <td>
+                            {% if order.order_type == 'delivery' %}
+                                {% if total_payments >= order.total_amount|add:order.delivery_charge %}
+                                    <span class="badge bg-success">✓ Settled</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Pending</span>
+                                {% endif %}
+                            {% else %}
+                                {% if total_payments >= order.total_amount %}
+                                    <span class="badge bg-success">✓ Settled</span>
+                                {% else %}
+                                    <span class="badge bg-warning text-dark">Pending</span>
+                                {% endif %}
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'restaurant:order_details' order_id=order.order_id %}" 
+                               class="btn btn-primary btn-sm">View Details</a>
+                        </td>
+                    </tr>
+                    {% endwith %}
+                    {% endwith %}
+                    {% endfor %}
+            </table>
+        </div>
+    </div>
+
+    <!-- Empty State -->
+    {% if not orders %}
+    <div class="card text-center">
+        <div class="card-body p-5">
+            <svg class="mb-3 text-muted" style="width: 4rem; height: 4rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+            </svg>
+            <p class="text-muted fs-5 fw-medium mb-3">No orders found</p>
+            <a href="{% url 'restaurant:place_order_takeaway' %}" class="btn btn-primary">Create First Order</a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script src="{% static 'js/order_list.js' %}"></script>
+<script>
+    function filterOrders() {
+        const searchTerm = document.getElementById('orderSearch').value.toLowerCase();
+        const statusFilter = document.getElementById('statusFilter').value.toLowerCase();
+        const typeFilter = document.getElementById('typeFilter').value.toLowerCase();
+
+        document.querySelectorAll('#ordersBody tr').forEach(row => {
+            let show = true;
+
+            // Search filter (case-insensitive)
+            if (searchTerm && !row.textContent.toLowerCase().includes(searchTerm)) {
+                show = false;
+            }
+
+            // Status filter: prefer the visible text of the status select in the row
+            if (statusFilter) {
+                const statusSelect = row.querySelector('select[name="status"]');
+                let statusText = '';
+                if (statusSelect) {
+                    const sel = statusSelect.options[statusSelect.selectedIndex];
+                    statusText = (sel && sel.textContent) ? sel.textContent.toLowerCase() : '';
+                } else {
+                    statusText = row.textContent.toLowerCase();
+                }
+                if (!statusText.includes(statusFilter)) {
+                    show = false;
+                }
+            }
+
+            // Type filter: compare the type cell text case-insensitively
+            if (typeFilter) {
+                const typeCell = row.querySelector('td:nth-child(3)');
+                const typeText = typeCell ? typeCell.textContent.toLowerCase() : row.textContent.toLowerCase();
+                if (typeFilter === 'table' && !typeText.includes('table')) {
+                    show = false;
+                } else if (typeFilter === 'takeaway' && !typeText.includes('takeaway')) {
+                    show = false;
+                } else if (typeFilter === 'delivery' && !typeText.includes('delivery')) {
+                    show = false;
+                }
+            }
+
+            row.style.display = show ? '' : 'none';
+        });
+    }
+
+    // Bulk selection functions
+    function toggleSelectAll(checkbox) {
+        const visibleCheckboxes = document.querySelectorAll('#ordersBody tr:not([style*="display: none"]) .order-checkbox');
+        visibleCheckboxes.forEach(cb => {
+            cb.checked = checkbox.checked;
+        });
+        updateBulkActionButton();
+    }
+
+    function updateBulkActionButton() {
+        const selectedCheckboxes = document.querySelectorAll('.order-checkbox:checked');
+        const bulkCancelBtn = document.getElementById('bulkCancelBtn');
+        
+        if (selectedCheckboxes.length > 0) {
+            bulkCancelBtn.style.display = 'inline-block';
+        } else {
+            bulkCancelBtn.style.display = 'none';
+            document.getElementById('selectAll').checked = false;
+        }
+    }
+
+    function bulkCancelOrders() {
+        const selectedCheckboxes = document.querySelectorAll('.order-checkbox:checked');
+        const selectedOrders = Array.from(selectedCheckboxes).map(cb => ({
+            id: cb.value,
+            row: cb.closest('tr')
+        }));
+
+        if (selectedOrders.length === 0) {
+            alert('Please select at least one order to cancel');
+            return;
+        }
+
+        // Check if any order has payment - cannot cancel paid orders
+        let paidOrders = [];
+        selectedOrders.forEach(order => {
+            const hasPayment = order.row.getAttribute('data-has-payment') === 'true';
+            if (hasPayment) {
+                const orderNumber = order.row.getAttribute('data-order-number');
+                paidOrders.push(orderNumber);
+            }
+        });
+
+        // If there are paid orders, show popup and prevent cancellation
+        if (paidOrders.length > 0) {
+            const orderList = paidOrders.join(', ');
+            alert('Cannot cancel these orders - Please clear the payment first:\n\nOrder Numbers: ' + orderList);
+            return;
+        }
+
+        // If all orders have no payment, proceed with cancellation
+        const confirmMessage = `Are you sure you want to cancel ${selectedOrders.length} order(s)?\n\nThis action cannot be undone.`;
+        
+        if (confirm(confirmMessage)) {
+            // Send POST request to cancel orders
+            const orderIds = selectedOrders.map(o => o.id);
+            
+            fetch('{% url "restaurant:bulk_cancel_orders" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({
+                    order_ids: orderIds
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`Successfully cancelled ${data.cancelled_count} order(s)`);
+                    location.reload();
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to cancel orders'));
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error);
+                console.error('Error:', error);
+            });
+        }
+    }
+
+    // Helper function to get CSRF token
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+</script>
+<script>
+    // Populate data-label attributes for responsive stacked tables
+    document.addEventListener('DOMContentLoaded', function () {
+        try {
+            const table = document.getElementById('ordersTable');
+            if (!table) return;
+            const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim());
+            table.querySelectorAll('tbody tr').forEach(row => {
+                Array.from(row.querySelectorAll('td')).forEach((td, i) => {
+                    if (headers[i]) td.setAttribute('data-label', headers[i]);
+                });
+            });
+        } catch (e) {
+            console.warn('Failed to set data-labels for responsive table', e);
+        }
+    });
+</script>
+{% endblock %}
