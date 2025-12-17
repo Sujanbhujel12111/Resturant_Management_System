@@ -93,6 +93,9 @@ class Order(models.Model):
         """
         if self.status == 'completed' and self.payment_status == 'paid':
             try:
+                # Only copy delivery_charge if it's a delivery order
+                delivery_charge_to_copy = self.delivery_charge if self.order_type == 'delivery' else 0
+                
                 # First, create the OrderHistory instance
                 order_history = OrderHistory.objects.create(
                     order_id=self.order_id,
@@ -101,6 +104,7 @@ class Order(models.Model):
                     order_type=self.order_type,
                     status=self.status,
                     total_amount=self.total_amount,
+                    delivery_charge=delivery_charge_to_copy,
                     special_notes=self.special_notes or '',  # Provide empty string if None
                     table=self.table,
                     delivery_address=self.delivery_address,
@@ -221,6 +225,12 @@ class OrderHistory(models.Model):
     delivery_unit = models.CharField(max_length=100, blank=True, null=True)
     cancellation_reason = models.TextField(blank=True, null=True, help_text="Reason for order cancellation")
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    delivery_charge = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2, 
+        default=0,
+        help_text="Delivery charge for delivery orders"
+    )
     completed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='completed_order_histories')
 
     def __str__(self):

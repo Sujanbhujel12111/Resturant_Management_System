@@ -188,5 +188,23 @@
     <script src="{% static 'js/interactive.js' %}"></script>
     <script src="{% static 'js/responsive.js' %}"></script>
     {% block extra_js %}{% endblock %}
+    <!-- Timezone detection: set `user_timezone` cookie for server to pick up -->
+    <script>
+        (function(){
+            try {
+                function getCookie(name){
+                    const v = document.cookie.match('(^|;)\\s*'+name+'\\s*=\\s*([^;]+)');
+                    return v ? v.pop() : null;
+                }
+                if (!getCookie('user_timezone')){
+                    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                    if (tz){
+                        // set cookie for 1 year
+                        document.cookie = 'user_timezone=' + encodeURIComponent(tz) + ';path=/;max-age=' + (60*60*24*365) + ';SameSite=Lax';
+                    }
+                }
+            } catch (e) { /* ignore */ }
+        })();
+    </script>
 </body>
 </html>

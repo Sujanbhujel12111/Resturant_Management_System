@@ -44,8 +44,9 @@
                         <option value="">All Statuses</option>
                         <option value="pending">Pending</option>
                         <option value="cooking">Cooking</option>
-                        <option value="completed">Completed</option>
-                        <option value="cancelled">Cancelled</option>
+                        <option value="ready">Ready</option>
+                        <option value="served">Served</option>
+                        <option value="on the way">On The Way</option>
                     </select>
                 </div>
                 <div class="col-12 col-sm-6 col-md-4">
@@ -176,29 +177,43 @@
 <script>
     function filterOrders() {
         const searchTerm = document.getElementById('orderSearch').value.toLowerCase();
-        const statusFilter = document.getElementById('statusFilter').value;
-        const typeFilter = document.getElementById('typeFilter').value;
+        const statusFilter = document.getElementById('statusFilter').value.toLowerCase();
+        const typeFilter = document.getElementById('typeFilter').value.toLowerCase();
 
         document.querySelectorAll('#ordersBody tr').forEach(row => {
             let show = true;
-            
-            // Search filter
+
+            // Search filter (case-insensitive)
             if (searchTerm && !row.textContent.toLowerCase().includes(searchTerm)) {
                 show = false;
             }
 
-            // Status filter
-            if (statusFilter && !row.textContent.includes(statusFilter)) {
-                show = false;
+            // Status filter: prefer the visible text of the status select in the row
+            if (statusFilter) {
+                const statusSelect = row.querySelector('select[name="status"]');
+                let statusText = '';
+                if (statusSelect) {
+                    const sel = statusSelect.options[statusSelect.selectedIndex];
+                    statusText = (sel && sel.textContent) ? sel.textContent.toLowerCase() : '';
+                } else {
+                    statusText = row.textContent.toLowerCase();
+                }
+                if (!statusText.includes(statusFilter)) {
+                    show = false;
+                }
             }
 
-            // Type filter
-            if (typeFilter === 'table' && !row.textContent.includes('Table')) {
-                show = false;
-            } else if (typeFilter === 'takeaway' && !row.textContent.includes('Takeaway')) {
-                show = false;
-            } else if (typeFilter === 'delivery' && !row.textContent.includes('Delivery')) {
-                show = false;
+            // Type filter: compare the type cell text case-insensitively
+            if (typeFilter) {
+                const typeCell = row.querySelector('td:nth-child(3)');
+                const typeText = typeCell ? typeCell.textContent.toLowerCase() : row.textContent.toLowerCase();
+                if (typeFilter === 'table' && !typeText.includes('table')) {
+                    show = false;
+                } else if (typeFilter === 'takeaway' && !typeText.includes('takeaway')) {
+                    show = false;
+                } else if (typeFilter === 'delivery' && !typeText.includes('delivery')) {
+                    show = false;
+                }
             }
 
             row.style.display = show ? '' : 'none';

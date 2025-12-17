@@ -6,7 +6,7 @@
 
 {% block content %}
 <div class="container-fluid p-3 p-md-4">
-    <h1 class="mb-4">Transaction History</h1>
+    <h1 class="mb-4 ps-1 ps-md-3">Transaction History</h1>
 
     <!-- Filters Section -->
     <div class="card mb-4">
@@ -71,20 +71,21 @@
             <table id="orders-table" class="table table-hover mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th>Order ID</th>
-                        <th class="d-none d-sm-table-cell">Customer</th>
-                        <th class="d-none d-md-table-cell">Type</th>
-                        <th>Amount</th>
-                        <th class="d-none d-lg-table-cell">Status</th>
-                        <th>Actions</th>
-                    </tr>
+                            <th class="py-2 px-3 align-middle">Order ID</th>
+                            <th class="py-2 px-3 align-middle d-none d-sm-table-cell">Customer</th>
+                            <th class="py-2 px-3 align-middle">Type</th>
+                            <th class="py-2 px-3 align-middle text-end">Amount</th>
+                            <th class="py-2 px-3 align-middle d-none d-lg-table-cell">Status</th>
+                            <th class="py-2 px-3 align-middle d-none d-md-table-cell">Completed By</th>
+                            <th class="py-2 px-3 align-middle text-center">Actions</th>
+                        </tr>
                 </thead>
                 <tbody>
                 {% for order in orders %}
                 <tr class="order-row" data-order-type="{{ order.order_type }}">
-                    <td class="py-2 px-3 border-bottom">{{ order.order_id }}</td>
-                    <td class="py-2 px-3 border-bottom">{{ order.customer_name }}</td>
-                    <td class="py-2 px-3 border-bottom">
+                    <td class="py-2 px-3 border-bottom align-middle">{{ order.order_id }}</td>
+                    <td class="py-2 px-3 border-bottom align-middle d-none d-sm-table-cell">{{ order.customer_name }}</td>
+                    <td class="py-2 px-3 border-bottom align-middle">
                         {% if order.table %}
                             table #{{ order.table.number }}
                         {% elif order.order_type == 'takeaway' %}
@@ -93,16 +94,22 @@
                             Delivery
                         {% endif %}
                     </td>
-                    <td class="py-2 px-3 border-bottom">Rs.{{ order.total_amount }}</td>
-                    <td class="py-2 px-3 border-bottom">{{ order.status }}</td>
-                    <td class="py-2 px-3 border-bottom">
+                    <td class="py-2 px-3 border-bottom align-middle text-end">
+                        {% if order.order_type == 'delivery' %}
+                            Rs.{{ order.total_amount|add:order.delivery_charge }}
+                        {% else %}
+                            Rs.{{ order.total_amount }}
+                        {% endif %}
+                    </td>
+                    <td class="py-2 px-3 border-bottom align-middle d-none d-lg-table-cell">{{ order.status }}</td>
+                    <td class="py-2 px-3 border-bottom align-middle d-none d-md-table-cell">
                         {% if order.completed_by %}
                             {{ order.completed_by.get_full_name|default:order.completed_by.username }}
                         {% else %}
                             N/A
                         {% endif %}
                     </td>
-                    <td class="py-2 px-3 border-bottom">
+                    <td class="py-2 px-3 border-bottom align-middle text-center">
                         <button data-order-id="{{ order.order_id }}" 
                             data-order-url="{% url 'restaurant:order_history_details' order.order_id %}"
                             class="btn btn-primary btn-sm order-details-btn">
@@ -252,8 +259,16 @@
                         <p id="modal-completed-by" class="fw-semibold"></p>
                     </div>
                     <div class="col-12 col-md-6">
-                        <p class="text-secondary small">Total Amount:</p>
+                        <p class="text-secondary small">Subtotal:</p>
                         <p id="modal-total-amount" class="fw-semibold"></p>
+                    </div>
+                    <div class="col-12 col-md-6" id="modal-delivery-charge-container" style="display: none;">
+                        <p class="text-secondary small">Delivery Charge:</p>
+                        <p id="modal-delivery-charge" class="fw-semibold"></p>
+                    </div>
+                    <div class="col-12 col-md-6" id="modal-total-with-delivery-container" style="display: none;">
+                        <p class="text-secondary small">Total Amount:</p>
+                        <p id="modal-total-with-delivery" class="fw-semibold text-success"></p>
                     </div>
                     <div class="col-12" id="modal-cancellation-reason-container" style="display: none;">
                         <p class="text-secondary small">Cancellation Reason:</p>
@@ -308,18 +323,7 @@
                     </div>
                 </div>
 
-                <!-- Revert Order Action -->
-                <div class="pt-4 mt-4 border-top">
-                    <h3 class="fw-bold h5 mb-3">Order Actions</h3>
-                    <form id="modal-revert-form" method="POST" class="d-inline">
-                        {% csrf_token %}
-                        <button type="submit" id="modal-revert-btn" class="btn btn-warning btn-sm" 
-                                title="Revert this order back to active orders. It will no longer appear in history.">
-                            <i class="fas fa-undo me-2"></i>Undo / Revert Order
-                        </button>
-                        <small class="text-muted d-block mt-2">Click to restore this order back to active orders.</small>
-                    </form>
-                </div>
+                <!-- Order Actions removed -->
             </div>
     </div>
 </div>
@@ -622,6 +626,9 @@
         if (!btn) return;
         e.preventDefault();
         const url = btn.getAttribute('data-order-url');
+        // capture the visible Type text from the table row as a fallback
+        const sourceRow = btn.closest('tr');
+        const sourceTypeText = (sourceRow && sourceRow.querySelector('td:nth-child(3)')) ? (sourceRow.querySelector('td:nth-child(3)').textContent || '').trim() : '';
         if (!url) { openModal(); return; }
         // show modal with skeleton/spinner while loading
         const spinner = document.getElementById('modal-spinner');
@@ -633,6 +640,9 @@
 
         openModal();
 
+
+
+        
         fetch(url, { credentials: 'same-origin' })
             .then(resp => {
                 if (!resp.ok) throw new Error('Failed to load');
@@ -645,14 +655,32 @@
                     document.getElementById('modal-customer-name').textContent = data.customer_name || '';
                     document.getElementById('modal-customer-phone').textContent = data.customer_phone || '';
                     // order type / table
-                    const ot = data.order_type || '';
-                    let otText = ot;
+                    const ot = (data.order_type || '').toString();
+                    let otText = ot || '';
                     if (data.table && data.table.number) otText = 'table #' + data.table.number;
+                    // fallback to the visible table row Type text if response didn't include table info
+                    if (!otText && sourceTypeText) otText = sourceTypeText;
                     if (ot === 'takeaway') otText = 'Takeaway';
                     if (ot === 'delivery') otText = 'Delivery';
                     document.getElementById('modal-order-type').textContent = otText;
                     document.getElementById('modal-completed-by').textContent = data.completed_by || 'N/A';
                     document.getElementById('modal-total-amount').textContent = data.total_amount ? ('Rs.' + data.total_amount) : '';
+                    
+                    // Handle delivery charge display
+                    const deliveryChargeContainer = document.getElementById('modal-delivery-charge-container');
+                    const deliveryChargeEl = document.getElementById('modal-delivery-charge');
+                    const totalWithDeliveryContainer = document.getElementById('modal-total-with-delivery-container');
+                    const totalWithDeliveryEl = document.getElementById('modal-total-with-delivery');
+                    
+                    if (data.order_type === 'delivery' && data.delivery_charge > 0) {
+                        deliveryChargeEl.textContent = 'Rs.' + data.delivery_charge;
+                        deliveryChargeContainer.style.display = '';
+                        totalWithDeliveryEl.textContent = 'Rs.' + data.total_with_delivery;
+                        totalWithDeliveryContainer.style.display = '';
+                    } else {
+                        deliveryChargeContainer.style.display = 'none';
+                        totalWithDeliveryContainer.style.display = 'none';
+                    }
 
                     // cancellation reason
                     if (data.cancellation_reason) {
@@ -863,58 +891,6 @@
             console.error(err);
         });
     });
-})();
-</script>
-<script>
-// Revert form submit handler (form submission to revert order)
-(function(){
-    const revertForm = document.getElementById('modal-revert-form');
-    const revertBtn = document.getElementById('modal-revert-btn');
-    if (!revertForm || !revertBtn) return;
-
-    revertForm.addEventListener('submit', function(e){
-        e.preventDefault();
-        const orderId = revertForm.dataset.orderId || '';
-        if (!orderId) {
-            alert('Order ID not found. Please refresh and try again.');
-            return;
-        }
-
-        // Ask for confirmation before reverting
-        const confirmed = confirm(`Are you sure you want to revert order ${orderId} back to active orders?\n\nThis order will no longer appear in the history.`);
-        if (!confirmed) return;
-
-        // Submit the form with revert URL
-        const REVERT_URL_TEMPLATE = "{% url 'restaurant:revert_order' 'ORDER_ID_PLACEHOLDER' %}";
-        const revertUrl = REVERT_URL_TEMPLATE.replace('ORDER_ID_PLACEHOLDER', encodeURIComponent(orderId));
-        revertForm.action = revertUrl;
-        revertForm.submit();
-    });
-
-    // Store the order ID when modal is opened
-    const origOpenBtn = document.querySelector('.order-details-btn');
-    if (origOpenBtn) {
-        document.addEventListener('click', function(e){
-            const btn = e.target.closest('.order-details-btn');
-            if (!btn) return;
-            // After modal data loads, we'll set revertForm.dataset.orderId via modal population
-        });
-    }
-
-    // Update the modal population code to also set revert form data
-    // (Hook into the existing fetch-then-populate flow by updating data-order-id)
-})();
-</script>
-<script>
-// Update modal revert form data when modal is populated with order data
-(function(){
-    const origPopulationCode = `
-        // set notes form target (store current order id/url)
-        const notesForm = document.getElementById('modal-notes-form');
-        notesForm.dataset.orderId = data.order_id;
-    `;
-    // The actual update is done inline in the modal population code above
-    // We'll adjust it to also set revert form data
 })();
 </script>
 {% endblock %}

@@ -288,7 +288,17 @@ def place_order_delivery(request):
 @login_required
 def close_order(request, pk):
     from decimal import Decimal
-    order = get_object_or_404(Order, pk=pk)
+    try:
+        order = Order.objects.get(pk=pk)
+    except Order.DoesNotExist:
+        # Check if this order has already been moved to history
+        messages.info(request, 'This order has already been completed and moved to history.')
+        return redirect('restaurant:order_list')
+    
+    # Check if order is already completed or cancelled
+    if order.status in ['completed', 'cancelled']:
+        messages.warning(request, f'Cannot close order. This order is already {order.status}.')
+        return redirect('restaurant:order_details', order_id=order.order_id)
     
     if request.method == 'POST':
         # Calculate settled payments
@@ -657,51 +667,8 @@ def bulk_cancel_orders(request):
     # GET request shouldn't happen normally, but just in case, redirect back
     return redirect('restaurant:order_details', order_id=order.order_id)
 
-@login_required
-def revert_order(request, order_id):
-    """
-    Revert a completed or cancelled order from history back to active orders.
-    Only POST requests are processed.
-    """
-    import logging
-    logger = logging.getLogger(__name__)
-    
-    if request.method == 'POST':
-        try:
-            order_history = get_object_or_404(OrderHistory, order_id=order_id)
-            
-            # Determine the revert status based on original order type
-            # For completed/cancelled orders, revert to 'served' (table) or 'ready' (takeaway/delivery)
-            revert_status_map = {
-                'table': 'served',
-                'takeaway': 'ready_to_pickup',
-                'delivery': 'ready',
-            }
-            revert_status = revert_status_map.get(order_history.order_type, 'served')
-            
-            # Call the revert method
-            new_order = order_history.revert_to_order(revert_status=revert_status)
-            
-            if new_order:
-                logger.info(f"Order {order_id} reverted to active orders by {request.user.username}")
-                messages.success(request, f'Order {order_id} has been reverted back to active orders.')
-                # Redirect to the newly created active order details
-                return redirect(reverse('restaurant:order_details', kwargs={'order_id': new_order.order_id}))
-            else:
-                logger.error(f"Failed to revert order {order_id}")
-                messages.error(request, f'Failed to revert order {order_id}. Please try again.')
-                return redirect(reverse('restaurant:order_history_details', kwargs={'order_id': order_id}))
-        except OrderHistory.DoesNotExist:
-            messages.error(request, 'Order not found in history.')
-            return redirect('restaurant:transaction_history')
-        except Exception as e:
-            logger.exception(f"Error reverting order {order_id}: {e}")
-            messages.error(request, f'Error reverting order: {str(e)}')
-            return redirect('restaurant:transaction_history')
-    
-    # GET request - show confirmation (optional)
-    messages.error(request, 'Invalid request method. Use POST to revert an order.')
-    return redirect('restaurant:transaction_history')
+#
+# If you need this functionality later, re-implement with strict permission checks (admins only).
 
 @login_required
 def edit_payment(request, pk):
@@ -797,6 +764,59 @@ def add_order_item(request, order_id):
 
 
 @login_required
+@login_required
+def update_order_item(request, order_id, item_id):
+    logger = logging.getLogger(__name__)
+    logger.info(f"Received request to update item {item_id} in order {order_id}")
+
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            new_quantity = int(data.get('quantity', 0))
+            
+            if new_quantity < 1:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Quantity must be at least 1'
+                }, status=400)
+            
+            order = get_object_or_404(Order, order_id=order_id)
+            order_item = get_object_or_404(OrderItem, id=item_id, order=order)
+            
+            # Calculate the difference in total amount
+            old_total = order_item.price * order_item.quantity
+            new_total = order_item.price * new_quantity
+            difference = new_total - old_total
+            
+            # Update the order item quantity
+            order_item.quantity = new_quantity
+            order_item.save()
+            
+            # Update the order's total amount
+            order.total_amount += difference
+            order.save()
+
+            logger.info(f"Successfully updated item {item_id} quantity to {new_quantity} in order {order_id}")
+            return JsonResponse({
+                'status': 'success',
+                'new_total': str(order.total_amount),
+                'item_price': float(order_item.price),
+                'item_id': order_item.id
+            })
+        except Exception as e:
+            logger.error(f"Error processing request: {e}")
+            return JsonResponse({
+                'status': 'error',
+                'message': str(e)
+            }, status=500)
+    
+    logger.warning(f"Invalid request method for updating item {item_id} in order {order_id}")
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Invalid request method'
+    }, status=405)
+
+
 def remove_order_item(request, order_id, item_id):
     logger = logging.getLogger(__name__)
     logger.info(f"Received request to remove item {item_id} from order {order_id}")
@@ -927,6 +947,9 @@ def get_order_details(request, order_id):
     if order.completed_by:
         completed_by = order.completed_by.get_full_name() or getattr(order.completed_by, 'username', None)
 
+    # Calculate total with delivery charge for delivery orders
+    total = float(order.total_amount) + float(order.delivery_charge) if order.order_type == 'delivery' else float(order.total_amount)
+    
     response_data = {
         'order_id': order.order_id,
         'customer_name': getattr(order, 'customer_name', None),
@@ -935,6 +958,8 @@ def get_order_details(request, order_id):
         'table': {'number': order.table.number} if order.table else None,
         'completed_by': completed_by,
         'total_amount': float(order.total_amount),
+        'delivery_charge': float(order.delivery_charge),
+        'total_with_delivery': total,
         'payment_status': order.payment_status,
         'created_at': order.created_at.isoformat() if order.created_at else None,
         'updated_at': order.updated_at.isoformat() if order.updated_at else None,
@@ -1017,6 +1042,9 @@ def order_history_details(request, order_id):
                 'capacity': order.table.capacity
             }
         
+        # Calculate total with delivery charge if applicable
+        total = float(order.total_amount) + float(getattr(order, 'delivery_charge', 0))
+        
         data = {
             'order_id': str(order.order_id),
             'customer_name': order.customer_name,
@@ -1024,6 +1052,8 @@ def order_history_details(request, order_id):
             'order_type': order.order_type,
             'table': table_data,
             'total_amount': float(order.total_amount),
+            'delivery_charge': float(getattr(order, 'delivery_charge', 0)),
+            'total_with_delivery': total,
             'payments': payment_data,
             # Prefer full name if available, otherwise fall back to username
             'completed_by': (order.completed_by.get_full_name() if (order.completed_by and order.completed_by.get_full_name()) else (order.completed_by.username if order.completed_by else None)),
@@ -1160,7 +1190,7 @@ from django.core.paginator import Paginator
 
 def transaction_history(request):
     # Server-side filtering for transaction history (date range, type, search) and pagination
-    orders_qs = OrderHistory.objects.all().order_by('-created_at')
+    orders_qs = OrderHistory.objects.select_related('table').all().order_by('-created_at')
 
     # Filters from query params
     q = request.GET.get('q', '').strip()
@@ -1194,7 +1224,14 @@ def transaction_history(request):
             pass
 
     if order_type:
-        orders_qs = orders_qs.filter(order_type=order_type)
+        # Some historical records may have table information stored
+        # even if order_type field is inconsistent. For 'table' filter,
+        # include records where order_type == 'table' OR a table FK exists.
+        from django.db.models import Q
+        if order_type == 'table':
+            orders_qs = orders_qs.filter(Q(order_type='table') | Q(table__isnull=False))
+        else:
+            orders_qs = orders_qs.filter(order_type=order_type)
     
     if status:
         orders_qs = orders_qs.filter(status=status)
@@ -1227,7 +1264,7 @@ def transaction_history(request):
 @login_required
 def export_orders_csv(request):
     """Export filtered OrderHistory rows as CSV (opens in Excel)."""
-    orders_qs = OrderHistory.objects.all().order_by('-created_at')
+    orders_qs = OrderHistory.objects.select_related('table').all().order_by('-created_at')
 
     # Apply same filters as transaction_history
     q = request.GET.get('q', '').strip()
@@ -1257,7 +1294,12 @@ def export_orders_csv(request):
             pass
 
     if order_type:
-        orders_qs = orders_qs.filter(order_type=order_type)
+        from django.db.models import Q
+        if order_type == 'table':
+            # For 'table' filter, include records where order_type == 'table' OR a table FK exists
+            orders_qs = orders_qs.filter(Q(order_type='table') | Q(table__isnull=False))
+        else:
+            orders_qs = orders_qs.filter(order_type=order_type)
     if status:
         orders_qs = orders_qs.filter(status=status)
 
@@ -1268,15 +1310,23 @@ def export_orders_csv(request):
     response['Content-Disposition'] = 'attachment; filename="transaction_history.csv"'
 
     writer = csv.writer(response)
-    writer.writerow(['Order ID', 'Customer', 'Phone', 'Type', 'Table', 'Status', 'Total Amount', 'Created At', 'Updated At', 'Notes'])
+    # Removed separate 'Table' column; table number is included in the Type column for table orders
+    writer.writerow(['Order ID', 'Customer', 'Phone', 'Type', 'Status', 'Total Amount', 'Created At', 'Updated At', 'Notes'])
     for o in orders_qs:
-        table_num = o.table.number if getattr(o, 'table', None) else ''
+        # Match template logic: check table first, then order_type
+        if getattr(o, 'table', None):
+            type_display = f"Table #{o.table.number}"
+        elif (o.order_type or '').lower() == 'takeaway':
+            type_display = 'Takeaway'
+        elif (o.order_type or '').lower() == 'delivery':
+            type_display = 'Delivery'
+        else:
+            type_display = (o.order_type or '').capitalize()
         writer.writerow([
             smart_str(o.order_id),
             smart_str(o.customer_name),
             smart_str(o.customer_phone),
-            smart_str(o.order_type),
-            smart_str(table_num),
+            smart_str(type_display),
             smart_str(o.status),
             smart_str(o.total_amount),
             o.created_at.isoformat() if o.created_at else '',
@@ -1292,7 +1342,7 @@ def export_orders_pdf(request):
     """Export filtered OrderHistory rows as a professionally formatted PDF with tables.
     Requires `reportlab` package. If not available, returns 501 with installation hint.
     """
-    orders_qs = OrderHistory.objects.all().order_by('-created_at')
+    orders_qs = OrderHistory.objects.select_related('table').all().order_by('-created_at')
 
     # Reuse same filtering logic
     q = request.GET.get('q', '').strip()
@@ -1322,7 +1372,12 @@ def export_orders_pdf(request):
             pass
 
     if order_type:
-        orders_qs = orders_qs.filter(order_type=order_type)
+        from django.db.models import Q
+        if order_type == 'table':
+            # For 'table' filter, include records where order_type == 'table' OR a table FK exists
+            orders_qs = orders_qs.filter(Q(order_type='table') | Q(table__isnull=False))
+        else:
+            orders_qs = orders_qs.filter(order_type=order_type)
     if status:
         orders_qs = orders_qs.filter(status=status)
 
@@ -1400,25 +1455,32 @@ def export_orders_pdf(request):
     
     # Prepare table data
     table_data = [
-        ['Order ID', 'Customer', 'Phone', 'Type', 'Table', 'Status', 'Amount', 'Created At']
+        ['Order ID', 'Customer', 'Phone', 'Type', 'Status', 'Amount', 'Created At']
     ]
     
     for o in orders_qs:
-        table_num = str(o.table.number) if getattr(o, 'table', None) else '-'
         created_str = o.created_at.strftime('%Y-%m-%d %H:%M') if o.created_at else ''
+        # Match template logic: check table first, then order_type
+        if getattr(o, 'table', None):
+            type_display = f"Table #{o.table.number}"
+        elif (o.order_type or '').lower() == 'takeaway':
+            type_display = 'Takeaway'
+        elif (o.order_type or '').lower() == 'delivery':
+            type_display = 'Delivery'
+        else:
+            type_display = (o.order_type or '').capitalize()
         table_data.append([
             str(o.order_id),
             str(o.customer_name or ''),
             str(o.customer_phone or ''),
-            str(o.order_type or ''),
-            table_num,
+            type_display,
             str(o.status or ''),
             f"Rs.{o.total_amount}",
             created_str
         ])
     
     # Create table with styling
-    table = Table(table_data, colWidths=[1.0*inch, 1.2*inch, 0.9*inch, 0.7*inch, 0.5*inch, 0.8*inch, 0.7*inch, 1.0*inch])
+    table = Table(table_data, colWidths=[1.0*inch, 1.2*inch, 0.9*inch, 0.9*inch, 0.8*inch, 0.7*inch, 1.0*inch])
     table.setStyle(TableStyle([
         # Header row style
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0d6efd')),
@@ -1531,7 +1593,9 @@ from django.views.decorators.csrf import csrf_exempt
 
 @login_required
 @csrf_exempt
+@login_required
 def add_payment(request, order_id):
+    from decimal import Decimal
     order = get_object_or_404(Order, id=order_id)
     if request.method == 'POST':
         form = PaymentForm(request.POST)
@@ -1541,11 +1605,16 @@ def add_payment(request, order_id):
             payment.edited_by = request.user
             payment.save()
 
-            # Update remaining amount
-            total_paid = order.payments.aggregate(Sum('amount'))['amount__sum'] or 0
-            order.remaining_amount = order.total_amount - total_paid
-            order.save()
+            # Update remaining amount including delivery charge for delivery orders
+            total_paid = Decimal(order.payments.aggregate(Sum('amount'))['amount__sum'] or 0)
+            if order.order_type == 'delivery':
+                total_amount = Decimal(order.total_amount) + Decimal(order.delivery_charge)
+            else:
+                total_amount = Decimal(order.total_amount)
+            remaining_amount = float(total_amount - total_paid)
 
-            return JsonResponse({'status': 'success', 'remaining_amount': order.remaining_amount})
-        return JsonResponse({'status': 'error', 'errors': form.errors}, status=400)
+            return JsonResponse({'status': 'success', 'remaining_amount': remaining_amount})
+        else:
+            print(f'Form errors: {form.errors}')
+            return JsonResponse({'status': 'error', 'errors': form.errors}, status=400)
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)

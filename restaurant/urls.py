@@ -38,28 +38,29 @@ urlpatterns = [
     path('table/<int:pk>/update/', views.TableUpdateView.as_view(), name='table_update'),
     path('table/<int:pk>/delete/', views.TableDeleteView.as_view(), name='table_delete'),
     
-    # Order Management
-    path('orders/', views.OrderListView.as_view(), name='order_list'),
-    path('order/place/<int:table_id>/', views.place_order, name='place_order'),
+    # Order Management - More specific patterns first
     path('order/close/<int:pk>/', views.close_order, name='close_order'),
+    path('order/place/<int:table_id>/', views.place_order, name='place_order'),
     path('order/update_status/<int:pk>/', views.update_order_status, name='update_order_status'),
-    path('order_details/<str:order_id>/', views.order_details, name='order_details'),
-    path('order/<int:pk>/cancel/', views.cancel_order, name='cancel_order'),
+    path('order/process_payment/<int:pk>/', views.process_payment, name='process_payment'),
     path('order/bulk-cancel/', views.bulk_cancel_orders, name='bulk_cancel_orders'),
     
-    # Order Items Management
-    path('order/<str:order_id>/update_items/', views.update_order_items, name='update_order_items'),
-
-
-    path('order/<str:order_id>/add_item/', views.add_order_item, name='add_order_item'),
-    path('order/<str:order_id>/update_address/', views.update_order_address, name='update_order_address'),
-    path('order/<str:order_id>/remove_item/<int:item_id>/', views.remove_order_item, name='remove_order_item'),
-    
-    # Payment Processing
-    path('order/process_payment/<int:pk>/', views.process_payment, name='process_payment'),
+    # Order with primary key patterns
+    path('order/<int:pk>/cancel/', views.cancel_order, name='cancel_order'),
     path('payment/<int:pk>/edit/', views.edit_payment, name='edit_payment'),
     path('payment/<int:pk>/delete/', views.delete_payment, name='delete_payment'),
     path('add_payment/<int:order_id>/', views.add_payment, name='add_payment'),
+    
+    # Order with string order_id patterns (less specific, come later)
+    path('order_details/<str:order_id>/', views.order_details, name='order_details'),
+    path('order/<str:order_id>/update_items/', views.update_order_items, name='update_order_items'),
+    path('order/<str:order_id>/add_item/', views.add_order_item, name='add_order_item'),
+    path('order/<str:order_id>/update_item/<int:item_id>/', views.update_order_item, name='update_order_item'),
+    path('order/<str:order_id>/update_address/', views.update_order_address, name='update_order_address'),
+    path('order/<str:order_id>/remove_item/<int:item_id>/', views.remove_order_item, name='remove_order_item'),
+    
+    # Other order lists
+    path('orders/', views.OrderListView.as_view(), name='order_list'),
     
     # Different Order Types
     path('place_order_takeaway/', views.place_order_takeaway, name='place_order_takeaway'),
@@ -70,7 +71,6 @@ urlpatterns = [
     path('transaction_history/export/csv/', views.export_orders_csv, name='export_orders_csv'),
     path('transaction_history/export/pdf/', views.export_orders_pdf, name='export_orders_pdf'),
     path('order_history_details/<str:order_id>/', views.order_history_details, name='order_history_details'),
-    path('order/<str:order_id>/revert/', views.revert_order, name='revert_order'),
     path('order_update_notes/<str:order_id>/', views.order_update_notes, name='order_update_notes'),
     # serve a favicon shortcut to avoid 404 in dev
     path('favicon.ico', lambda request: __import__('django.shortcuts').shortcuts.redirect('/static/favicon.svg')),

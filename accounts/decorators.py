@@ -21,7 +21,7 @@ def staff_permission_required(name):
         def _wrapped(request, *args, **kwargs):
             user = getattr(request, 'user', None)
             if not user or not user.is_authenticated:
-                return redirect('login')
+                return redirect('accounts:login')
 
             if user.is_superuser:
                 return view_func(request, *args, **kwargs)
@@ -73,7 +73,7 @@ def require_module_access(module_name):
             
             # Check if user is authenticated
             if not user or not user.is_authenticated:
-                return redirect('login')
+                return redirect('accounts:login')
             
             # Superusers always have access
             if user.is_superuser:
