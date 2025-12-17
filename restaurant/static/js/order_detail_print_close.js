@@ -93,7 +93,7 @@ function closeOrderConfirm() {
     if (confirm(`Close Order #${orderId}?\n\nTotal Amount: Rs.${total.toFixed(2)}\nSettled Amount: Rs.${settledAmount.toFixed(2)}\n\nThis action will move the order to completed status.`)) {
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = "{% url 'restaurant:close_order' order.id %}";
+        form.action = CLOSE_ORDER_URL;  // Use the variable defined in template, not Django template tag
         
         const csrfInput = document.createElement('input');
         csrfInput.type = 'hidden';

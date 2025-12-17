@@ -1,9 +1,6 @@
 // Payment Management Functions
-const csrf_token = '{{ csrf_token }}';
-const orderId = '{{ order.order_id }}';
-const orderPk = '{{ order.id }}';
-const PAYMENT_EDIT_URL_TEMPLATE = "{% url 'restaurant:edit_payment' 0 %}";
-const PAYMENT_DELETE_URL_TEMPLATE = "{% url 'restaurant:delete_payment' 0 %}";
+// Note: csrf_token, orderId, orderPk, PAYMENT_EDIT_URL_TEMPLATE, PAYMENT_DELETE_URL_TEMPLATE
+// are declared in the template to avoid duplicate declarations
 
 function addPaymentForm() {
     const paymentForms = document.getElementById('payment-forms');
@@ -33,11 +30,16 @@ function editPayment(id) {
     const transactionId = transactionEl ? transactionEl.innerText : '';
 
     if (paymentItem.querySelector('.payment-method')) {
+        // Build dropdown with payment method choices
+        let optionsHTML = '';
+        if (typeof PAYMENT_METHOD_CHOICES !== 'undefined') {
+            PAYMENT_METHOD_CHOICES.forEach(method => {
+                optionsHTML += `<option value="${method[0]}">${method[1]}</option>`;
+            });
+        }
         paymentItem.querySelector('.payment-method').innerHTML = `
             <select class="py-2 px-3 border rounded">
-                {% for method in payment_methods %}
-                    <option value="{{ method.0 }}">{{ method.1 }}</option>
-                {% endfor %}
+                ${optionsHTML}
             </select>
         `;
         try {

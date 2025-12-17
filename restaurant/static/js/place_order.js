@@ -1,11 +1,25 @@
 // Menu items data - passed from Django template
-const menuItems = JSON.parse('{{ menu_items_json|safe }}');
+let menuItems = [];
+try {
+    const jsonStr = '{{ menu_items_json|safe }}';
+    if (jsonStr && jsonStr.trim()) {
+        menuItems = JSON.parse(jsonStr);
+    }
+} catch (e) {
+    console.error('Error parsing menu items:', e);
+    menuItems = [];
+}
 
 let orderData = {};
 let totalForms = 0;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
+    if (menuItems.length === 0) {
+        console.warn('No menu items available');
+        document.getElementById('items-grid').innerHTML = '<p class="text-muted text-center">No items available</p>';
+        return;
+    }
     renderCategories();
     renderItemsGrid();
     setupCategoryFilters();

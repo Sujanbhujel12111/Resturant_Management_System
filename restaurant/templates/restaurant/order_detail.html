@@ -875,150 +875,28 @@
     // URL templates for payment actions (0 will be replaced with actual id)
     const PAYMENT_EDIT_URL_TEMPLATE = "{% url 'restaurant:edit_payment' 0 %}";
     const PAYMENT_DELETE_URL_TEMPLATE = "{% url 'restaurant:delete_payment' 0 %}";
+    // Close order URL
+    const CLOSE_ORDER_URL = "{% url 'restaurant:close_order' order.id %}";
+    
+    // Payment method choices for dropdown
+    const PAYMENT_METHOD_CHOICES = [
+        ['cash', 'Cash'],
+        ['card', 'Card'],
+        ['fonepay', 'Fonepay'],
+        ['bank', 'Bank'],
+        ['khalti', 'Khalti'],
+        ['ipay', 'Ipay'],
+        ['prabhu', 'Prabhu'],
+        ['esewa', 'Esewa'],
+        ['imepay', 'Imepay'],
+        ['connectips', 'Connectips'],
+        ['sct', 'SCT'],
+        ['qr_code', 'QR Code'],
+        ['other', 'Other'],
+    ];
 
-// Payment Management Functions
-function addPaymentForm() {
-    const paymentForms = document.getElementById('payment-forms');
-    const newPaymentForm = document.createElement('div');
-    newPaymentForm.classList.add('payment-form', 'mt-2');
-    newPaymentForm.innerHTML = `
-        <select name="payment_method" class="py-2 px-3 border rounded">
-            {% for method in payment_methods %}
-                <option value="{{ method.0 }}">{{ method.1 }}</option>
-            {% endfor %}
-        </select>
-        <input type="number" name="amount" step="0.01" class="py-2 px-3 border rounded ml-2" 
-               placeholder="Amount" oninput="updateRemainingAmount()">
-        <input type="text" name="transaction_id" class="py-2 px-3 border rounded ml-2" 
-               placeholder="Transaction ID (optional)">
-    `;
-    if (paymentForms) paymentForms.appendChild(newPaymentForm);
-}
-
-// consolidated updateRemainingAmount below (single implementation)
-
-function editPayment(id) {
-    const paymentItem = document.getElementById(`payment-${id}`);
-    if (!paymentItem) return;
-    const paymentMethod = paymentItem.querySelector('.payment-method') ? paymentItem.querySelector('.payment-method').innerText : '';
-    const amountEl = paymentItem.querySelector('.payment-amount');
-    const amount = amountEl ? amountEl.innerText.replace(/Rs\.?\s*/g, '') : '';
-    const transactionEl = paymentItem.querySelector('.payment-transaction-id');
-    const transactionId = transactionEl ? transactionEl.innerText : '';
-
-    if (paymentItem.querySelector('.payment-method')) {
-        paymentItem.querySelector('.payment-method').innerHTML = `
-            <select class="py-2 px-3 border rounded">
-                {% for method in payment_methods %}
-                    <option value="{{ method.0 }}">{{ method.1 }}</option>
-                {% endfor %}
-            </select>
-        `;
-        // set select value to current method if available
-        try{
-            const sel = paymentItem.querySelector('.payment-method select');
-            if (sel) sel.value = paymentMethod;
-        }catch(e){/* ignore */}
-    }
-    if (amountEl) {
-        const numericAmount = String(amount).replace(/[^0-9.\-\.]/g,'') || '';
-        amountEl.innerHTML = `<input type="number" value="${numericAmount}" class="py-2 px-3 border rounded">`;
-    }
-    if (transactionEl) {
-        transactionEl.innerHTML = `<input type="text" value="${transactionId}" class="py-2 px-3 border rounded">`;
-    }
-
-    const primaryBtn = paymentItem.querySelector('.text-primary');
-    const successBtn = paymentItem.querySelector('.text-success');
-    if (primaryBtn) primaryBtn.classList.add('d-none');
-    if (successBtn) successBtn.classList.remove('d-none');
-}
-
-function savePayment(id) {
-    const paymentItem = document.getElementById(`payment-${id}`);
-    if (!paymentItem) return;
-    const pmSelect = paymentItem.querySelector('.payment-method select');
-    const paymentMethod = pmSelect ? pmSelect.value : '';
-    const amountInput = paymentItem.querySelector('.payment-amount input');
-    const amount = amountInput ? amountInput.value : '';
-    const txInput = paymentItem.querySelector('.payment-transaction-id input');
-    const transactionId = txInput ? txInput.value : '';
-
-    // get CSRF from cookie
-    const csrftoken = (function(){
-        const m = document.cookie.match('(^|;)\\s*' + 'csrftoken' + '\\s*=\\s*([^;]+)');
-        return m ? decodeURIComponent(m.pop()) : null;
-    })();
-
-    const editUrl = PAYMENT_EDIT_URL_TEMPLATE.replace('/0/', '/' + id + '/');
-    console.log('Edit payment posting to', editUrl, {payment_method: paymentMethod, amount: amount, transaction_id: transactionId});
-    fetch(editUrl, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrftoken || ''
-        },
-        body: JSON.stringify({
-            payment_method: paymentMethod,
-            amount: amount,
-            transaction_id: transactionId
-        }),
-    }).then(response => response.json())
-    .then(data => {
-        if (data && data.status === 'success'){
-            if (paymentItem.querySelector('.payment-method')) paymentItem.querySelector('.payment-method').innerText = paymentMethod;
-            const amountEl = paymentItem.querySelector('.payment-amount');
-            if (amountEl) {
-                const formattedAmount = parseFloat(amount).toFixed(2);
-                amountEl.setAttribute('data-amount', formattedAmount);
-                amountEl.innerText = `Rs. ${formattedAmount}`;
-            }
-            if (paymentItem.querySelector('.payment-transaction-id')) paymentItem.querySelector('.payment-transaction-id').innerText = transactionId;
-
-            const primaryBtn = paymentItem.querySelector('.text-primary');
-            const successBtn = paymentItem.querySelector('.text-success');
-            if (primaryBtn) primaryBtn.classList.remove('d-none');
-            if (successBtn) successBtn.classList.add('d-none');
-
-            // update remaining and header counts
-            if (window.updateRemaining) window.updateRemaining();
-        } else {
-            console.error('Edit payment failed', data);
-            alert('Failed to save payment edits');
-        }
-    }).catch(err => { console.error('Edit payment error', err); alert('Failed to save payment edits'); });
-}
-
-function deletePayment(id) {
-    if (!confirm('Are you sure you want to delete this payment?')) {
-        return;
-    }
-    const csrftoken2 = (function(){
-        const m = document.cookie.match('(^|;)\\s*' + 'csrftoken' + '\\s*=\\s*([^;]+)');
-        return m ? decodeURIComponent(m.pop()) : null;
-    })();
-    const deleteUrl = PAYMENT_DELETE_URL_TEMPLATE.replace('/0/', '/' + id + '/');
-    fetch(deleteUrl, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrftoken2 || ''
-        },
-    }).then(response => response.json())
-    .then(data => {
-        if (data && data.status === 'success'){
-            const paymentItem = document.getElementById(`payment-${id}`);
-            if (paymentItem) paymentItem.remove();
-            if (window.updateRemaining) window.updateRemaining();
-        } else {
-            console.error('Delete payment failed', data);
-            alert('Failed to delete payment');
-        }
-    }).catch(err => { console.error('Delete payment error', err); alert('Failed to delete payment'); });
-}
-
+// Payment Management Functions are in external order_detail_payments.js file
+// This prevents duplicate declarations and double execution
 
 // Order Item Management Functions
 function openAddItemModal() {
@@ -1428,10 +1306,10 @@ function openPrintPreview(type) {
         
         // Payment is complete - confirm and close
         if (confirm(`Close Order #${orderId}?\n\nTotal Amount: Rs.${total.toFixed(2)}\nSettled Amount: Rs.${settledAmount.toFixed(2)}\n\nThis action will move the order to completed status.`)) {
-            // Submit the form via POST using the correct URL pattern with pk
+            // Submit the form via POST using the CLOSE_ORDER_URL variable
             const form = document.createElement('form');
             form.method = 'POST';
-            form.action = "{% url 'restaurant:close_order' order.id %}";
+            form.action = CLOSE_ORDER_URL;
             
             const csrfInput = document.createElement('input');
             csrfInput.type = 'hidden';
@@ -1519,89 +1397,8 @@ document.addEventListener('DOMContentLoaded', function(){
         // initialize remaining display
         updateRemaining();
 
-        // Handle add-payment form via AJAX to update remaining live
-        const addForm = document.getElementById('add-payment-form');
-        if (addForm){
-            addForm.addEventListener('submit', function(evt){
-                evt.preventDefault();
-                const formData = new FormData(addForm);
-                const action = addForm.getAttribute('action');
-                // include credentials so cookies (and CSRF cookie) are sent
-                const addPaymentCsrfToken = (function(){
-                    const m = document.cookie.match('(^|;)\\s*' + 'csrftoken' + '\\s*=\\s*([^;]+)');
-                    return m ? decodeURIComponent(m.pop()) : null;
-                })();
-                fetch(action, {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'X-CSRFToken': addPaymentCsrfToken || ''
-                    },
-                    body: formData,
-                })
-                .then(resp => resp.json())
-                .then(data => {
-                    console.log('Add payment response', data);
-                    if (data.status === 'success'){
-                        // append payment to settled payments list
-                        let paymentsContainer = document.getElementById('settled-payments');
-                        const method = formData.get('payment_method') || '';
-                        const amount = parseAmount(formData.get('amount')) || 0;
-                        const tx = formData.get('transaction_id') || '';
-
-                        if (!paymentsContainer){
-                            // find the Settled Payments card and replace the placeholder message
-                            const cards = document.querySelectorAll('.card');
-                            for (const c of cards){
-                                const hdr = c.querySelector('.section-header h3');
-                                if (hdr && hdr.textContent && hdr.textContent.trim().includes('Settled Payments')){
-                                    const content = c.querySelector('.card-content');
-                                    if (content){
-                                        // remove any paragraph placeholder
-                                        const p = content.querySelector('p');
-                                        if (p) p.remove();
-                                        const container = document.createElement('div');
-                                        container.id = 'settled-payments';
-                                        content.appendChild(container);
-                                        paymentsContainer = container;
-                                    }
-                                    break;
-                                }
-                            }
-                        }
-
-                        const item = document.createElement('div');
-                        item.className = 'payment-item';
-                        item.innerHTML = `<div style="display:flex;align-items:center;gap:1rem;">
-                            <div class="payment-info"><h5>${method.charAt(0).toUpperCase()+method.slice(1)}</h5>${tx?('<p>ID: '+tx+'</p>'):''}</div>
-                            <div class="payment-amount" data-amount="${amount.toFixed(2)}">Rs. ${amount.toFixed(2)}</div>
-                        </div>`;
-
-                        if (paymentsContainer){
-                            paymentsContainer.appendChild(item);
-                        }
-
-                        // clear form amount
-                        addForm.querySelector('input[name="amount"]').value = '';
-
-                        // if server returned remaining_amount, use it to update display
-                        if (data.remaining_amount !== undefined && data.remaining_amount !== null){
-                            const remEl = document.getElementById('remaining-amount');
-                            if (remEl) remEl.textContent = 'Rs. ' + parseFloat(data.remaining_amount).toFixed(2);
-                        } else {
-                            updateRemaining();
-                        }
-                    } else {
-                        alert('Failed to add payment: ' + (data.message || JSON.stringify(data.errors || data)));
-                    }
-                })
-                .catch(err => {
-                    console.error('Add payment failed', err);
-                    alert('Failed to add payment. See console.');
-                });
-            });
-        }
+        // Payment form submission is handled in order_detail_remaining.js
+        // to avoid duplicate event listeners and double payment recording
 
         // If payments are edited/deleted via existing handlers, they should call updateRemaining()
         window.updateRemaining = updateRemaining;
