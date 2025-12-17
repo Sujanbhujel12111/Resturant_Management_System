@@ -1,0 +1,46 @@
+{% extends 'restaurant/base.html' %}
+{% load static %}
+
+{% block title %}Menu{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{% static 'css/public_menu.css' %}">
+<div class="public-menu-container">
+    <h1 class="public-menu-title">Menu</h1>
+    
+    {% if categories %}
+        {% for category in categories %}
+            <div class="public-menu-category">
+                <h2 class="public-menu-category-title">
+                    {{ category.name }}
+                </h2>
+                
+                {% with items=category.menuitem_set.filter is_available=True %}
+                    {% if items %}
+                        <div class="public-menu-grid">
+                            {% for item in items %}
+                                <div class="public-menu-card">
+                                    {% if item.image %}
+                                        <img src="{{ item.image.url }}" alt="{{ item.name }}" class="public-menu-card-image">
+                                    {% endif %}
+                                    <div class="public-menu-card-body">
+                                        <h3 class="public-menu-card-title">{{ item.name }}</h3>
+                                        {% if item.description %}
+                                            <p class="public-menu-card-description">{{ item.description }}</p>
+                                        {% endif %}
+                                        <p class="public-menu-card-price">Rs.{{ item.price }}</p>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="public-menu-no-items">No available items in this category</p>
+                    {% endif %}
+                {% endwith %}
+            </div>
+        {% endfor %}
+    {% else %}
+        <p class="public-menu-empty-message">No active menu categories available</p>
+    {% endif %}
+</div>
+{% endblock %}
