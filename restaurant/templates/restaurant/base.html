@@ -17,6 +17,8 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome Icons -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Shared empty-state styles -->
+    <link rel="stylesheet" href="{% static 'css/empty_state.css' %}">
     <!-- Removed custom responsive CSS: now using Bootstrap only. -->
     <!-- If you need custom overrides, add them to `static/css/backup/` or create a new minimal override file. -->
     {% block extra_css %}{% endblock %}
@@ -45,7 +47,7 @@
                 <!-- Desktop Navigation -->
                 <div class="navbar-nav ms-auto">
                     {% if user.is_superuser or user_perms.has_dashboard %}
-                    <a href="{% url 'home:dashboard' %}" class="nav-link px-3 py-2">Dashboard</a>
+                    <a href="{% url 'restaurant:dashboard' %}" class="nav-link px-3 py-2">Dashboard</a>
                     {% endif %}
                     
                     {% if user.is_superuser or user_perms.has_orders %}
@@ -87,18 +89,18 @@
                     </button>
 
                     <ul class="dropdown-menu dropdown-menu-end shadow-sm">
-                        <li><a class="dropdown-item" href="{% url 'home:profile' %}"><i class="fas fa-user me-2"></i>View Profile</a></li>
+                        <li><a class="dropdown-item" href="{% url 'restaurant:profile' %}"><i class="fas fa-user me-2"></i>View Profile</a></li>
                         <li><a class="dropdown-item" href="#"><i class="fas fa-cog me-2"></i>Settings</a></li>
                         <li><hr class="dropdown-divider"></li>
                         {% if user.is_authenticated %}
                             <li>
-                                <form method="post" action="{% url 'home:logout' %}">
+                                <form method="post" action="{% url 'restaurant:logout' %}">
                                     {% csrf_token %}
                                     <button type="submit" class="dropdown-item"><i class="fas fa-sign-out-alt me-2"></i>Logout</button>
                                 </form>
                             </li>
                         {% else %}
-                            <li><a class="dropdown-item" href="{% url 'home:login' %}"><i class="fas fa-sign-in-alt me-2"></i>Login</a></li>
+                            <li><a class="dropdown-item" href="{% url 'restaurant:login' %}"><i class="fas fa-sign-in-alt me-2"></i>Login</a></li>
                         {% endif %}
                     </ul>
                 </div>

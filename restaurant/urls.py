@@ -11,6 +11,7 @@ urlpatterns = [
     path('', views.dashboard_view, name='dashboard'),
     path('kitchen/', views.kitchen_view, name='kitchen'),
     path('kitchen/orders/api/', views.kitchen_orders_api, name='kitchen_orders_api'),
+    path('kitchen/ajax/update_order_status/', views.kitchen_update_order_status_ajax, name='kitchen_update_order_status_ajax'),
     
     # Menu Management
     path('menu/', views.menu_view, name='menu'),
@@ -74,9 +75,14 @@ urlpatterns = [
     path('order_update_notes/<str:order_id>/', views.order_update_notes, name='order_update_notes'),
     # serve a favicon shortcut to avoid 404 in dev
     path('favicon.ico', lambda request: __import__('django.shortcuts').shortcuts.redirect('/static/favicon.svg')),
-    
-    # ML / Forecasting
-    path('ml/', include('restaurant.ml.urls')),
+
+    # Home app routes merged here
+    path('login/', views.LoginView.as_view(), name='login'),
+    path('logout/', views.LogoutView.as_view(), name='logout'),
+    path('about/', views.about_view, name='about'),
+    path('contact/', views.contact_view, name='contact'),
+    path('profile/', views.profile_view, name='profile'),
+    path('accounts/profile/', views.profile_view, name='account_profile'),
 
 
 

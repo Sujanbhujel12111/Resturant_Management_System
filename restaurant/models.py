@@ -20,6 +20,12 @@ class Category(models.Model):
         return self.name
 
 class MenuItem(models.Model):
+    DEMAND_TIER_CHOICES = [
+        ('high', 'High Demand (Tier 1)'),
+        ('medium', 'Medium Demand (Tier 2)'),
+        ('low', 'Low Demand (Tier 3)'),
+    ]
+    
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
@@ -27,6 +33,21 @@ class MenuItem(models.Model):
     is_available = models.BooleanField(default=True)
     preparation_area = models.CharField(max_length=100, blank=True)
     image = models.ImageField(upload_to='menu_images/', blank=True)
+    demand_tier = models.CharField(
+        max_length=10,
+        choices=DEMAND_TIER_CHOICES,
+        default='medium',
+        help_text="Demand tier calculated by K-Means clustering on order history"
+    )
+    order_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Total number of times this item was ordered"
+    )
+    last_tier_update = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Last time the demand tier was recalculated"
+    )
 
     def __str__(self):
         return self.name
@@ -187,14 +208,9 @@ class Payment(models.Model):
         ('fonepay', 'Fonepay'),
         ('bank', 'Bank'),
         ('khalti', 'Khalti'),
-        ('ipay', 'Ipay'),
-        ('prabhu', 'Prabhu'),
         ('esewa', 'Esewa'),
         ('imepay', 'Imepay'),
         ('connectips', 'Connectips'),
-        ('sct', 'SCT'),
-        ('qr_code', 'QR Code'),
-        ('other', 'Other'),
     ]
 
     order = models.ForeignKey(Order, related_name='payments', on_delete=models.CASCADE)

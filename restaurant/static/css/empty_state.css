@@ -1,0 +1,40 @@
+/* Shared empty-state styles applied site-wide */
+
+.empty-state-card,
+.menu-empty-state,
+.category-empty-state {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.empty-state-card svg,
+.menu-empty-state svg,
+.category-empty-state-icon,
+.menu-empty-state .svg,
+.category-empty-state svg {
+    width: 6rem !important;
+    height: 6rem !important;
+    max-width: 100%;
+    opacity: 0.6;
+    margin: 0.5rem auto;
+    display: block;
+}
+
+.empty-state-card h2,
+.menu-empty-state h2,
+.category-empty-state h2 {
+    margin-top: 0.5rem;
+}
+
+/* Make sure empty state visuals scale down on small screens */
+@media (max-width: 600px) {
+    .empty-state-card svg,
+    .menu-empty-state svg,
+    .category-empty-state-icon {
+        width: 4rem !important;
+        height: 4rem !important;
+    }
+}

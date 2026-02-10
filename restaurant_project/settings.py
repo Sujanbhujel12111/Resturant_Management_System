@@ -26,7 +26,6 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'home',  # Add your app here
     'accounts',
     'restaurant',
     'widget_tweaks',  # Add your app here

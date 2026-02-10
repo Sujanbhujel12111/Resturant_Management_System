@@ -34,7 +34,7 @@ from accounts.mixins import ModuleAccessMixin
 from .models import Table, Category, MenuItem, Order, OrderItem, Payment, OrderHistory, OrderHistoryPayment
 from .forms import MenuItemForm, CategoryForm, OrderForm, OrderItemForm, PaymentForm
 import json
-from django.db.models import Sum
+from django.db.models import Sum, Count
 from django.contrib import messages
 from datetime import date
 from django.shortcuts import render, get_object_or_404
@@ -46,6 +46,46 @@ from django.contrib.auth import views as auth_views
 import qrcode
 from io import BytesIO
 import logging
+from django.contrib.auth.decorators import login_required
+from django.views import View as DjangoView
+from datetime import datetime
+import numpy as np
+from sklearn.cluster import KMeans
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
+from .models import OrderHistoryItem
+
+
+# ---- Merged from `home.views` ----
+class HomeView(DjangoView):
+    def get(self, request):
+        return render(request, 'home/login.html')
+
+
+@login_required
+def profile_view(request):
+    return render(request, 'home/profile.html')
+
+
+def about_view(request):
+    return render(request, 'home/about.html')
+
+
+def contact_view(request):
+    if request.method == 'POST':
+        name = request.POST.get('name')
+        email = request.POST.get('email')
+        message = request.POST.get('message')
+        context = {
+            'name': name,
+            'email': email,
+            'message': message,
+            'success': True,
+        }
+        return render(request, 'home/contact.html', context)
+    return render(request, 'home/contact.html')
+
+# ---- end merged ----
 
 
 class LoginView(auth_views.LoginView):
@@ -91,16 +131,234 @@ def generate_qr_code(request):
 
 @require_module_access('dashboard')
 def dashboard_view(request):
-    today = date.today()
+    # Use timezone-aware day range to calculate today's revenue reliably
+    from django.utils import timezone
+    from datetime import timedelta
+
+    now = timezone.now()
+    start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_of_day = start_of_day + timedelta(days=1)
+
     pending_orders = Order.objects.exclude(status__in=['completed', 'cancelled']).count()
-    active_tables = Table.objects.filter(status='occupied').count()
+    # Determine active tables from orders (match TableListView logic)
+    table_ids_with_pending_orders = set(
+        Order.objects.filter(
+            table__isnull=False,
+            status__in=['pending', 'preparing', 'ready', 'served']
+        ).values_list('table_id', flat=True)
+    )
+    active_tables = Table.objects.filter(id__in=table_ids_with_pending_orders).count()
     total_menu_items = MenuItem.objects.filter(is_available=True).count()
-    today_revenue = Order.objects.filter(
-        created_at__date=today,
-        status='completed'
-    ).aggregate(Sum('total_amount'))['total_amount__sum'] or 0
+    # Prefer actual payments recorded today to reflect collected revenue.
+    payments_total = Payment.objects.filter(
+        date_edited__gte=start_of_day,
+        date_edited__lt=end_of_day
+    ).aggregate(Sum('amount'))['amount__sum'] or 0
+
+    # Include payments that were moved into order history today
+    from .models import OrderHistoryPayment
+    history_payments_total = OrderHistoryPayment.objects.filter(
+        date_added__gte=start_of_day,
+        date_added__lt=end_of_day
+    ).aggregate(Sum('amount'))['amount__sum'] or 0
+
+    combined_payments = (payments_total or 0) + (history_payments_total or 0)
+
+    if combined_payments:
+        today_revenue = combined_payments
+    else:
+        # As a final fallback, sum completed Orders created today (if any)
+        today_revenue = Order.objects.filter(
+            created_at__gte=start_of_day,
+            created_at__lt=end_of_day,
+            status='completed'
+        ).aggregate(Sum('total_amount'))['total_amount__sum'] or 0
     
     recent_orders = Order.objects.order_by('-created_at')[:5]
+    
+    # K-Means Clustering Analytics (persisted tiers)
+    bestsellers = MenuItem.objects.filter(demand_tier='high', is_available=True).order_by('-order_count')[:5]
+    average_items = MenuItem.objects.filter(demand_tier='medium', is_available=True).order_by('-order_count')[:5]
+    slow_movers = MenuItem.objects.filter(demand_tier='low', is_available=True).order_by('-order_count')[:5]
+
+    # Optional on-the-fly analysis by date/time range (GET params: start, end, apply=1)
+    analysis_results = None
+    start_str = request.GET.get('start')
+    end_str = request.GET.get('end')
+    apply_clusters = request.GET.get('apply') == '1'
+
+    if start_str and end_str:
+        # parse input from datetime-local inputs (e.g. 2026-02-10T14:30)
+        try:
+            start = parse_datetime(start_str)
+            end = parse_datetime(end_str)
+            if start is None:
+                start = datetime.fromisoformat(start_str)
+            if end is None:
+                end = datetime.fromisoformat(end_str)
+            # make timezone-aware using settings timezone
+            if timezone.is_naive(start):
+                start = timezone.make_aware(start)
+            if timezone.is_naive(end):
+                end = timezone.make_aware(end)
+
+            # Query OrderHistoryItem within the provided range
+            item_order_counts = (
+                OrderHistoryItem.objects
+                .filter(order_history__created_at__gte=start, order_history__created_at__lte=end)
+                .values('item__id', 'item__name')
+                .annotate(order_count=Count('id'))
+                .order_by('-order_count')
+            )
+
+            items_data = list(item_order_counts)
+            if items_data:
+                order_counts = np.array([i['order_count'] for i in items_data]).reshape(-1, 1)
+                n_clusters = min(3, max(1, len(items_data)))
+                kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+                labels = kmeans.fit_predict(order_counts)
+
+                # Map clusters to tier names by descending center value
+                cluster_order = np.argsort(-kmeans.cluster_centers_.flatten())
+                tier_names = ['high', 'medium', 'low'][:n_clusters]
+                cluster_to_tier = {}
+                for rank, cid in enumerate(cluster_order):
+                    cluster_to_tier[cid] = tier_names[min(rank, len(tier_names)-1)]
+
+                # Build analysis result list
+                analysis_results = []
+                for data, lab in zip(items_data, labels):
+                    # include price and category for display
+                    try:
+                        mi = MenuItem.objects.filter(id=data['item__id']).values('price', 'category__name').first()
+                        price = mi['price'] if mi else None
+                        category_name = mi['category__name'] if mi else ''
+                    except Exception:
+                        price = None
+                        category_name = ''
+
+                    # collect order numbers and quantities for this item within the range
+                    history_orders = (
+                        OrderHistoryItem.objects
+                        .filter(item_id=data['item__id'], order_history__created_at__gte=start, order_history__created_at__lte=end)
+                        .values('order_history__order_id')
+                        .annotate(total_qty=Sum('quantity'))
+                        .order_by('-total_qty')
+                    )
+                    orders_count = history_orders.count()
+                    orders_qty = sum([ho['total_qty'] for ho in history_orders]) if orders_count else 0
+
+                    analysis_results.append({
+                        'item_id': data['item__id'],
+                        'name': data['item__name'],
+                        'order_count': data['order_count'],
+                        'tier': cluster_to_tier[lab],
+                        'price': price,
+                        'category_name': category_name,
+                        'orders_count': orders_count,
+                        'orders_qty': orders_qty,
+                    })
+
+                # If user requested to apply clusters to MenuItem records, update them
+                if apply_clusters:
+                    updated_count = 0
+                    for entry in analysis_results:
+                        try:
+                            mi = MenuItem.objects.get(id=entry['item_id'])
+                            mi.demand_tier = entry['tier']
+                            mi.order_count = entry['order_count']
+                            mi.last_tier_update = timezone.now()
+                            mi.save()
+                            updated_count += 1
+                        except MenuItem.DoesNotExist:
+                            continue
+                    messages.success(request, f'Applied clusters to {updated_count} menu items')
+
+        except Exception as e:
+            messages.error(request, f'Error running analysis: {e}')
+    # Prepare grouped lists for template if analysis ran
+    high_results = []
+    medium_results = []
+    low_results = []
+    if analysis_results:
+        for r in analysis_results:
+            if r['tier'] == 'high':
+                high_results.append(r)
+            elif r['tier'] == 'medium':
+                medium_results.append(r)
+            else:
+                low_results.append(r)
+
+    # Build persisted-item data (orders_qty and orders_count) for template and CSV fallback
+    def mi_to_data(mi, tier_name):
+        try:
+            from .models import OrderHistoryItem
+            qty_agg = OrderHistoryItem.objects.filter(item_id=getattr(mi, 'id', None)).aggregate(total_qty=Sum('quantity'))
+            orders_qty = qty_agg.get('total_qty') or 0
+            orders_count = OrderHistoryItem.objects.filter(item_id=getattr(mi, 'id', None)).values('order_history_id').distinct().count()
+        except Exception:
+            orders_qty = 0
+            orders_count = getattr(mi, 'order_count', 0)
+
+        return {
+            'item_id': getattr(mi, 'id', ''),
+            'name': getattr(mi, 'name', ''),
+            'category_name': getattr(getattr(mi, 'category', None), 'name', ''),
+            'price': getattr(mi, 'price', ''),
+            'order_count': getattr(mi, 'order_count', 0),
+            'orders_count': orders_count,
+            'orders_qty': orders_qty,
+            'tier': tier_name,
+        }
+
+    bestsellers_data = [mi_to_data(mi, 'high') for mi in bestsellers]
+    average_items_data = [mi_to_data(mi, 'medium') for mi in average_items]
+    slow_movers_data = [mi_to_data(mi, 'low') for mi in slow_movers]
+
+    # CSV export support: allow exporting analysis results or fall back to persisted MenuItem tiers
+    if request.GET.get('export') == '1':
+        import csv
+        from io import StringIO
+
+        si = StringIO()
+        cw = csv.writer(si)
+        # header (use single order_count column and total quantity)
+        cw.writerow(['item_id', 'name', 'category', 'price', 'order_count', 'orders_qty', 'tier'])
+
+        # Decide what to export: prefer analysis_results (date-range), otherwise use persisted tiers
+        rows_source = []
+        if analysis_results:
+            rows_source = analysis_results
+        else:
+            # Use the precomputed persisted-item data lists (avoid duplicate/order_count repetition)
+            rows_source = []
+            rows_source.extend(bestsellers_data)
+            rows_source.extend(average_items_data)
+            rows_source.extend(slow_movers_data)
+
+        for r in rows_source:
+            cw.writerow([
+                r.get('item_id'),
+                r.get('name'),
+                r.get('category_name', ''),
+                r.get('price', ''),
+                r.get('order_count', 0),
+                r.get('orders_qty', 0),
+                r.get('tier', ''),
+            ])
+
+        output = si.getvalue()
+        # prefer date-based filename when range provided
+        filename = 'menu_demand.csv'
+        try:
+            if start_str and end_str and 'start' in locals() and 'end' in locals():
+                filename = f"menu_demand_{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.csv"
+        except Exception:
+            filename = 'menu_demand.csv'
+
+        response = HttpResponse(output, content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
     
     context = {
         'pending_orders': pending_orders,
@@ -108,6 +366,16 @@ def dashboard_view(request):
         'total_menu_items': total_menu_items,
         'today_revenue': today_revenue,
         'orders': recent_orders,
+        'bestsellers': bestsellers,
+        'average_items': average_items,
+        'slow_movers': slow_movers,
+        'bestsellers_data': bestsellers_data,
+        'average_items_data': average_items_data,
+        'slow_movers_data': slow_movers_data,
+        'analysis_results': analysis_results,
+        'high_results': high_results,
+        'medium_results': medium_results,
+        'low_results': low_results,
     }
     return render(request, 'restaurant/dashboard.html', context)
 
@@ -135,6 +403,104 @@ def kitchen_orders_api(request):
             'items': order.items.count(),
         })
     return JsonResponse({'orders': orders_list})
+
+
+@login_required
+@require_module_access('kitchen')
+def kitchen_update_order_status_ajax(request):
+    """AJAX endpoint to update an order's status from the kitchen board.
+    Expects JSON: { "order_id": <int>, "status": "pending|preparing|ready|..." }
+    Returns JSON { success: true } or { success: false, message: '...' }
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Method not allowed'}, status=405)
+    try:
+        # Accept JSON payloads or fall back to form-encoded POSTs
+        data = {}
+        content_type = (request.META.get('CONTENT_TYPE') or request.content_type or '').lower()
+        if 'application/json' in content_type:
+            try:
+                body = request.body.decode('utf-8') if isinstance(request.body, (bytes, bytearray)) else request.body
+                data = json.loads(body or '{}')
+            except Exception:
+                return JsonResponse({'success': False, 'message': 'Invalid JSON'}, status=400)
+        else:
+            # request.POST works for form-encoded and multipart data
+            data = request.POST.dict()
+
+        # Support common parameter names
+        order_pk = data.get('order_id') or data.get('order_pk') or data.get('id')
+        new_status = (data.get('status') or '').strip()
+        if not order_pk or not new_status:
+            return JsonResponse({'success': False, 'message': 'Missing parameters (order_id and status required)'}, status=400)
+
+        try:
+            order_pk = int(order_pk)
+        except (TypeError, ValueError):
+            return JsonResponse({'success': False, 'message': 'Invalid order_id'}, status=400)
+
+        order = get_object_or_404(Order, pk=order_pk)
+
+        # Reuse server-side validation rules from update_order_status
+        status_aliases = {
+            'cooking': 'preparing',
+            'cook': 'preparing',
+            'ready': 'ready',
+            'complete': 'completed',
+            'completed': 'completed'
+        }
+        normalized = status_aliases.get(new_status, new_status)
+
+        # Map generic 'ready' to the takeaway-specific status
+        # so that kitchen UI posting 'ready' will work for takeaways.
+        if normalized == 'ready' and getattr(order, 'order_type', None) == 'takeaway':
+            normalized = 'ready_to_pickup'
+
+        allowed_statuses_by_type = {
+            'delivery': ['pending', 'preparing', 'ready', 'on_the_way', 'completed', 'cancelled'],
+            'takeaway': ['pending', 'preparing', 'ready_to_pickup', 'completed', 'cancelled'],
+            'table': ['pending', 'preparing', 'ready', 'served', 'completed', 'cancelled'],
+            None: list(dict(Order.ORDER_STATUS_CHOICES).keys()),
+        }
+        allowed_for_type = allowed_statuses_by_type.get(order.order_type, allowed_statuses_by_type[None])
+
+        if normalized not in allowed_for_type:
+            return JsonResponse({'success': False, 'message': 'Invalid status for this order type'}, status=400)
+
+        # If marking completed, ensure payments are settled
+        if normalized == 'completed':
+            paid = order.payments.aggregate(total=Sum('amount'))['total'] or 0
+            try:
+                from decimal import Decimal
+                paid_val = Decimal(paid)
+                required = Decimal(order.total_amount) + (Decimal(order.delivery_charge or 0) if order.order_type == 'delivery' else Decimal(order.total_amount))
+            except Exception:
+                paid_val = paid
+                required = order.total_amount
+            if paid_val < required:
+                return JsonResponse({'success': False, 'message': 'Payments not settled'}, status=400)
+            order.status = 'completed'
+            order.payment_status = 'paid'
+            order.completed_by = request.user
+            order.save()
+            # attempt to move to history but don't fail the request if it errors
+            try:
+                order.move_to_history()
+            except Exception:
+                pass
+            return JsonResponse({'success': True, 'status': 'completed'})
+
+        # Otherwise just update
+        order.status = normalized
+        order.save()
+        return JsonResponse({'success': True, 'status': normalized})
+
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'message': 'Invalid JSON'}, status=400)
+    except Order.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Order not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
 
 @require_module_access('orders')
 @login_required
