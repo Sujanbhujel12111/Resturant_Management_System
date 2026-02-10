@@ -2,21 +2,28 @@
 
 function openPrintPreview(type) {
     const modal = document.getElementById('print-modal');
-    const container = modal ? modal.querySelector('.preview-container') : null;
     const template = document.getElementById(`${type}Template`);
     const preview = document.getElementById('print-preview');
+    const previewTitle = document.getElementById('previewTitle');
+    
     if (!modal || !preview || !template) return;
-    document.getElementById('previewTitle') ? document.getElementById('previewTitle').textContent = type === 'kot' ? 'KOT Preview' : 'Bill Preview' : null;
+    
+    // Update title
+    if (previewTitle) {
+        previewTitle.textContent = type === 'kot' ? 'KOT Preview' : 'Bill Preview';
+    }
+    
+    // Copy template content to preview
     preview.innerHTML = template.innerHTML;
-    modal.classList.remove('d-none');
-    modal.classList.add('active');
+    
+    // Show modal
+    modal.style.display = 'flex';
 }
 
 function closePreview() {
     const modal = document.getElementById('print-modal');
     if (!modal) return;
-    modal.classList.add('d-none');
-    modal.classList.remove('active');
+    modal.style.display = 'none';
 }
 
 function printDocument() {
@@ -86,22 +93,60 @@ function closeOrderConfirm() {
     const remaining = total - settledAmount;
     
     if (remaining > 0) {
-        alert(`Cannot close order. Payment not fully settled.\n\nRemaining Amount: Rs.${remaining.toFixed(2)}\n\nPlease collect the remaining payment first.`);
+        // Show Bootstrap payment error modal instead of alert
+        const errorModal = document.getElementById('payment-error-modal');
+        if (errorModal) {
+            const msgDiv = document.getElementById('payment-error-message');
+            if (msgDiv) {
+                msgDiv.innerHTML = `<p style="margin: 0; font-size: 0.95rem;"><strong>Remaining Amount:</strong> Rs.${remaining.toFixed(2)}</p>`;
+            }
+            errorModal.style.display = 'flex';
+        }
         return;
     }
     
-    if (confirm(`Close Order #${orderId}?\n\nTotal Amount: Rs.${total.toFixed(2)}\nSettled Amount: Rs.${settledAmount.toFixed(2)}\n\nThis action will move the order to completed status.`)) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = CLOSE_ORDER_URL;  // Use the variable defined in template, not Django template tag
-        
-        const csrfInput = document.createElement('input');
-        csrfInput.type = 'hidden';
-        csrfInput.name = 'csrfmiddlewaretoken';
-        csrfInput.value = csrf_token;
-        form.appendChild(csrfInput);
-        
-        document.body.appendChild(form);
-        form.submit();
+    // Show Bootstrap close order modal for confirmation
+    const closeModal = document.getElementById('close-order-modal');
+    if (closeModal) {
+        const msgDiv = document.getElementById('close-order-message');
+        if (msgDiv) {
+            msgDiv.innerHTML = `
+                <div class="order-info mb-3">
+                    <p class="mb-2"><strong>Order ID:</strong> #${orderId}</p>
+                    <p class="mb-2"><strong>Total Amount:</strong> Rs.${total.toFixed(2)}</p>
+                    <p class="mb-0"><strong>Settled Amount:</strong> Rs.${settledAmount.toFixed(2)}</p>
+                </div>
+                <div class="alert alert-info small mb-0">
+                    <i class="fas fa-info-circle me-2"></i>This action will move the order to completed status.
+                </div>
+            `;
+        }
+        closeModal.style.display = 'flex';
+    }
+}
+
+function confirmCloseOrder() {
+    if (document.getElementById('close-order-modal')) {
+        document.getElementById('close-order-modal').style.display = 'none';
+    }
+    
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = CLOSE_ORDER_URL;
+    
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = 'csrfmiddlewaretoken';
+    csrfInput.value = csrf_token;
+    form.appendChild(csrfInput);
+    
+    document.body.appendChild(form);
+    form.submit();
+}
+
+function closeCloseOrderModal() {
+    const modal = document.getElementById('close-order-modal');
+    if (modal) {
+        modal.style.display = 'none';
     }
 }

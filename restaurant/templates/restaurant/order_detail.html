@@ -462,6 +462,47 @@
             width: 100%;
         }
     }
+
+    @media print {
+        body {
+            background: white;
+        }
+        
+        .page-container {
+            padding: 0;
+            margin: 0;
+        }
+        
+        .page-header {
+            display: none;
+        }
+        
+        .main-layout {
+            grid-template-columns: 1fr;
+            gap: 0;
+        }
+        
+        .left-column, .right-column {
+            gap: 0;
+        }
+        
+        .card {
+            box-shadow: none;
+            page-break-inside: avoid;
+        }
+        
+        .action-buttons {
+            display: none;
+        }
+        
+        .modal-backdrop {
+            display: none !important;
+        }
+        
+        .btn {
+            display: none;
+        }
+    }
 </style>
 
 <link rel="stylesheet" href="{% static 'css/order_detail.css' %}">
@@ -665,13 +706,13 @@
                                 <td class="text-right">Rs.{{ order_item.item.price }}</td>
                                 <td class="text-right total-cell-{{ order_item.id }}">Rs.{{ order_item.quantity|multiply:order_item.item.price }}</td>
                                 <td class="text-center">
-                                    <button onclick="editOrderItem('{{ order_item.id }}', {{ order_item.quantity }}, {{ order_item.item.price }})" class="btn btn-primary btn-sm edit-btn-{{ order_item.id }}">
+                                    <button class="btn btn-primary btn-sm edit-btn-{{ order_item.id }} edit-btn" data-item-id="{{ order_item.id }}" data-quantity="{{ order_item.quantity }}" data-price="{{ order_item.item.price }}">
                                         Edit
                                     </button>
-                                    <button onclick="saveOrderItem('{{ order_item.id }}')" class="btn btn-success btn-sm save-btn-{{ order_item.id }} d-none">
+                                    <button class="btn btn-success btn-sm save-btn-{{ order_item.id }} d-none save-btn" data-item-id="{{ order_item.id }}">
                                         Save
                                     </button>
-                                    <button onclick="removeOrderItem('{{ order_item.id }}')" class="btn btn-danger btn-sm delete-btn-{{ order_item.id }}">
+                                    <button class="btn btn-danger btn-sm delete-btn-{{ order_item.id }} delete-btn" data-item-id="{{ order_item.id }}">
                                         Delete
                                     </button>
                                 </td>
@@ -788,10 +829,10 @@
 </div>
 
 <!-- Print Preview Modal -->
-<div id="print-modal" class="modal-backdrop">
+<div id="print-modal" class="modal-backdrop" style="display: none;">
     <div class="modal-content" style="max-width: 600px;">
         <div class="modal-header">
-            <h3>Print Preview</h3>
+            <h3 id="previewTitle">Print Preview</h3>
             <button onclick="closePreview()" class="btn-close">×</button>
         </div>
         <div class="modal-body" id="print-preview" style="max-height: 500px; overflow-y: auto;">
@@ -799,10 +840,176 @@
         </div>
         <div class="modal-footer">
             <button onclick="printDocument()" class="btn btn-primary">Print</button>
+            <button onclick="downloadPDF()" class="btn btn-secondary">Download PDF</button>
             <button onclick="closePreview()" class="btn btn-secondary">Close</button>
         </div>
     </div>
 </div>
+
+<!-- KOT Template (Hidden) -->
+<template id="kotTemplate">
+    <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 450px; margin: 0 auto; background: white; border: 2px solid #000;">
+        <!-- Header -->
+        <div style="text-align: center; margin-bottom: 15px;">
+            <div style="font-size: 18px; font-weight: bold;">KOT No</div>
+            <div style="font-size: 24px; font-weight: bold; margin: 5px 0;">{{ order.order_id }}</div>
+            <div style="font-size: 12px; color: #666;" class="print-datetime"></div>
+        </div>
+
+        <!-- Customer & Order Details -->
+        <div style="border: 1px solid #000; padding: 10px; margin-bottom: 15px; font-size: 12px;">
+            <div style="margin-bottom: 8px;">
+                <span style="font-weight: bold;">Customer Visitor</span>
+                {% if order.customer_name %}
+                    <span>{{ order.customer_name }}</span>
+                {% else %}
+                    <span>Walk-in</span>
+                {% endif %}
+            </div>
+            <div style="margin-bottom: 8px;">
+                <span style="font-weight: bold;">OrderType</span>
+                <span>
+                    {% if order.table %}
+                        Table
+                    {% elif order.order_type == 'delivery' %}
+                        Delivery
+                    {% else %}
+                        Takeaway
+                    {% endif %}
+                </span>
+            </div>
+            {% if order.table %}
+            <div>
+                <span style="font-weight: bold;">Table No</span>
+                <span>T{{ order.table.number }}</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Items Table -->
+        <div style="margin-bottom: 15px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+                <thead>
+                    <tr style="border-top: 1px solid #000; border-bottom: 1px solid #000;">
+                        <th style="padding: 5px; text-align: left; width: 15%;">SrNo</th>
+                        <th style="padding: 5px; text-align: left; width: 50%;">Item</th>
+                        <th style="padding: 5px; text-align: center; width: 15%;">Qty</th>
+                        <th style="padding: 5px; text-align: left; width: 20%;">Remark</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in order.items.all %}
+                    <tr style="border-bottom: 1px dotted #999;">
+                        <td style="padding: 5px;">{{ forloop.counter }}</td>
+                        <td style="padding: 5px;">{{ item.item.name }}</td>
+                        <td style="padding: 5px; text-align: center; font-weight: bold;">{{ item.quantity }}</td>
+                        <td style="padding: 5px;">{% if order.special_notes %}{{ order.special_notes }}{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Total Qty -->
+        <div style="text-align: right; font-size: 12px; font-weight: bold; border-top: 1px solid #000; padding-top: 8px;">
+            Total Qty: <span style="font-size: 14px;">{{ order.items.all|length }}</span>
+        </div>
+
+        <!-- Footer -->
+        <div style="text-align: center; margin-top: 20px; font-size: 11px; border-top: 1px solid #000; padding-top: 10px;">
+            <p style="margin: 0;">*** PREPARE AND SERVE ***</p>
+        </div>
+    </div>
+</template>
+
+<!-- Bill Template (Hidden) -->
+<template id="billTemplate">
+    <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 450px; margin: 0 auto; background: white; border: 2px solid #000;">
+        <!-- Restaurant Header -->
+        <div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 12px; margin-bottom: 15px;">
+            <div style="font-size: 16px; font-weight: bold;">Restaurant Management System</div>
+            <div style="font-size: 11px; color: #666; margin-top: 3px;">
+                <div>Your Restaurant Address Here</div>
+                <div>Phone: +1234567890</div>
+            </div>
+        </div>
+
+        <!-- Bill Info -->
+        <div style="display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 11px;">
+            <div>
+                <div style="font-weight: bold;">Bill No: {{ order.order_id }}</div>
+                <div style="font-weight: bold;">Date: <span class="print-datetime"></span></div>
+            </div>
+            <div style="text-align: right;">
+                {% if order.table %}
+                    <div style="font-weight: bold;">Table: {{ order.table.number }}</div>
+                {% endif %}
+                <div style="font-weight: bold;">
+                    {% if order.table %}
+                        Dine-in
+                    {% elif order.order_type == 'delivery' %}
+                        Delivery
+                    {% else %}
+                        Takeaway
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Items Table -->
+        <table style="width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 12px;">
+            <thead>
+                <tr style="border-top: 1px solid #000; border-bottom: 1px solid #000;">
+                    <th style="padding: 6px; text-align: left; width: 8%;">Sr</th>
+                    <th style="padding: 6px; text-align: left; width: 40%;">Item</th>
+                    <th style="padding: 6px; text-align: center; width: 10%;">Qty</th>
+                    <th style="padding: 6px; text-align: right; width: 17%;">Price</th>
+                    <th style="padding: 6px; text-align: right; width: 25%;">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in order.items.all %}
+                <tr style="border-bottom: 1px dotted #999;">
+                    <td style="padding: 6px;">{{ forloop.counter }}</td>
+                    <td style="padding: 6px;">{{ item.item.name }}</td>
+                    <td style="padding: 6px; text-align: center;">{{ item.quantity }}</td>
+                    <td style="padding: 6px; text-align: right;">Rs.{{ item.item.price }}</td>
+                    <td style="padding: 6px; text-align: right;">Rs.{{ item.quantity|multiply:item.item.price }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Summary -->
+        <div style="border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 10px 0; font-size: 11px; margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                <span>Sub Total:</span>
+                <span>Rs.{{ order.total_amount }}</span>
+            </div>
+            {% if order.order_type == 'delivery' and order.delivery_charge %}
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                <span>Delivery Charge:</span>
+                <span>Rs.{{ order.delivery_charge }}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 12px;">
+                <span>GRAND TOTAL:</span>
+                <span>Rs.{{ order.total_amount|add:order.delivery_charge }}</span>
+            </div>
+            {% else %}
+            <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 12px;">
+                <span>GRAND TOTAL:</span>
+                <span>Rs.{{ order.total_amount }}</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Footer -->
+        <div style="text-align: center; font-size: 11px;">
+            <p style="margin: 5px 0; font-weight: bold;">Thank You! Visit Again</p>
+            <p style="margin: 5px 0; color: #666;">*VAT Included in Price</p>
+        </div>
+    </div>
+</template>
 
 <!-- Cancel Order Modal -->
 <div id="cancel-modal" class="modal-backdrop">
@@ -831,6 +1038,55 @@
                 <button type="submit" class="btn btn-danger">Cancel Order</button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- Close Order Confirmation Modal -->
+<div id="close-order-modal" class="modal-backdrop" style="display: none;">
+    <div class="modal-content" style="max-width: 450px;">
+        <div class="modal-header">
+            <h3>Close Order</h3>
+            <button onclick="closeCloseOrderModal()" class="btn-close">×</button>
+        </div>
+        <div class="modal-body">
+            <div style="background: #e7f3ff; border: 1px solid #2196F3; border-radius: 8px; padding: 1.25rem; margin-bottom: 1.5rem;">
+                <p style="margin: 0; color: #1565c0; font-weight: 600;">
+                    <i class="fas fa-info-circle me-2"></i> Confirm Close Order
+                </p>
+            </div>
+            <div id="close-order-message" style="font-size: 0.95rem; line-height: 1.6;">
+                <!-- Order details will be populated here -->
+            </div>
+            <div style="background: #f5f5f5; border-left: 4px solid #4CAF50; border-radius: 4px; padding: 0.85rem; margin-top: 1rem; font-size: 0.9rem;">
+                <p style="margin: 0; color: #555;">
+                    <i class="fas fa-check-circle" style="color: #4CAF50; margin-right: 0.5rem;"></i>
+                    This action will move the order to <strong>completed</strong> status.
+                </p>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" onclick="closeCloseOrderModal()" class="btn btn-secondary">Keep Open</button>
+            <button type="button" onclick="confirmCloseOrder()" class="btn btn-success">
+                <i class="fas fa-check me-2"></i>Close Order
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Payment Error Modal -->
+<div id="payment-error-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;">
+    <div style="background: white; border-radius: 8px; padding: 2rem; max-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+        <div style="color: #dc3545; font-weight: 600; margin-bottom: 1rem; font-size: 1.1rem;">
+            <i class="fas fa-exclamation-circle me-2"></i>Cannot Close Order
+        </div>
+        <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 1rem; margin-bottom: 1.5rem; border-radius: 4px;">
+            <p style="margin: 0 0 0.5rem 0; color: #856404;"><strong>Payment Not Fully Settled</strong></p>
+            <div id="payment-error-message" style="color: #856404;"></div>
+            <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem; color: #856404;">Please collect the remaining payment before closing.</p>
+        </div>
+        <button type="button" onclick="document.getElementById('payment-error-modal').style.display='none'" class="btn btn-primary w-100">
+            <i class="fas fa-arrow-left me-2"></i>Back
+        </button>
     </div>
 </div>
 
@@ -1208,25 +1464,53 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 function openPrintPreview(type) {
-        const modal = document.getElementById('print-modal');
-        const container = modal ? modal.querySelector('.preview-container') : null;
-        const template = document.getElementById(`${type}Template`);
-        const preview = document.getElementById('print-preview');
-        if (!modal || !preview || !template) return;
-        document.getElementById('previewTitle') ? document.getElementById('previewTitle').textContent = type === 'kot' ? 'KOT Preview' : 'Bill Preview' : null;
-        preview.innerHTML = template.innerHTML;
-        modal.classList.remove('d-none');
-        modal.classList.add('active');
+    const modal = document.getElementById('print-modal');
+    const template = document.getElementById(`${type}Template`);
+    const preview = document.getElementById('print-preview');
+    const previewTitle = document.getElementById('previewTitle');
+    
+    if (!modal || !preview || !template) return;
+    
+    // Update title
+    if (previewTitle) {
+        previewTitle.textContent = type === 'kot' ? 'KOT Preview' : 'Bill Preview';
     }
+    
+    // Copy template content to preview
+    preview.innerHTML = template.innerHTML;
+    
+    // Update date/time dynamically
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = now.getFullYear();
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    
+    // Format for KOT: "10 Feb 2026 14:30"
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const kotDateTime = `${day} ${monthNames[now.getMonth()]} ${year} ${hours}:${minutes}`;
+    
+    // Format for Bill: "10/02/2026 14:30"
+    const billDateTime = `${day}/${month}/${year} ${hours}:${minutes}`;
+    
+    // Update all datetime elements based on template type
+    const dateElements = preview.querySelectorAll('.print-datetime');
+    dateElements.forEach((el) => {
+        el.textContent = type === 'kot' ? kotDateTime : billDateTime;
+    });
+    
+    // Show modal
+    modal.style.display = 'flex';
+}
 
-    function closePreview() {
-        const modal = document.getElementById('print-modal');
-        if (!modal) return;
-        modal.classList.add('d-none');
-        modal.classList.remove('active');
-    }
+function closePreview() {
+    const modal = document.getElementById('print-modal');
+    if (!modal) return;
+    modal.style.display = 'none';
+}
 
-    function printDocument() {
+function printDocument() {
         window.print();
     }
 
@@ -1275,7 +1559,7 @@ function openPrintPreview(type) {
         modal.style.display = 'none';
     }
 
-    // Close Order Function
+    // Close Order Function - Show Bootstrap Modal
     function closeOrderConfirm() {
         const totalAmount = document.getElementById('canonical-total');
         if (!totalAmount) return;
@@ -1295,26 +1579,54 @@ function openPrintPreview(type) {
         const remaining = total - settledAmount;
         
         if (remaining > 0) {
-            alert(`Cannot close order. Payment not fully settled.\n\nRemaining Amount: Rs.${remaining.toFixed(2)}\n\nPlease collect the remaining payment first.`);
+            // Show Bootstrap payment error modal
+            const errorModal = document.getElementById('payment-error-modal');
+            if (errorModal) {
+                const msgDiv = document.getElementById('payment-error-message');
+                if (msgDiv) {
+                    msgDiv.innerHTML = `<p style="margin: 0; font-size: 0.95rem;"><strong>Remaining Amount:</strong> Rs.${remaining.toFixed(2)}</p>`;
+                }
+                errorModal.style.display = 'flex';
+            }
             return;
         }
         
-        // Payment is complete - confirm and close
-        if (confirm(`Close Order #${orderId}?\n\nTotal Amount: Rs.${total.toFixed(2)}\nSettled Amount: Rs.${settledAmount.toFixed(2)}\n\nThis action will move the order to completed status.`)) {
-            // Submit the form via POST using the CLOSE_ORDER_URL variable
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = CLOSE_ORDER_URL;
-            
-            const csrfInput = document.createElement('input');
-            csrfInput.type = 'hidden';
-            csrfInput.name = 'csrfmiddlewaretoken';
-            csrfInput.value = csrf_token;
-            form.appendChild(csrfInput);
-            
-            document.body.appendChild(form);
-            form.submit();
+        // Payment is complete - Show confirmation modal
+        const messageDiv = document.getElementById('close-order-message');
+        if (messageDiv) {
+            messageDiv.innerHTML = `<p style="margin-bottom: 0.75rem;"><strong>Order #${orderId}</strong></p>
+                <p style="margin: 0.5rem 0;"><strong>Total Amount:</strong> Rs.${total.toFixed(2)}</p>
+                <p style="margin: 0.5rem 0;"><strong>Settled Amount:</strong> Rs.${settledAmount.toFixed(2)}</p>`;
         }
+        
+        const modal = document.getElementById('close-order-modal');
+        if (modal) {
+            modal.style.display = 'flex';
+        }
+    }
+    
+    function closeCloseOrderModal() {
+        const modal = document.getElementById('close-order-modal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+    
+    function confirmCloseOrder() {
+        closeCloseOrderModal();
+        
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = CLOSE_ORDER_URL;
+        
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrfmiddlewaretoken';
+        csrfInput.value = csrf_token;
+        form.appendChild(csrfInput);
+        
+        document.body.appendChild(form);
+        form.submit();
     }
 </script>
 
@@ -1391,6 +1703,22 @@ document.addEventListener('DOMContentLoaded', function(){
 
         // initialize remaining display
         updateRemaining();
+
+        // Event listeners for Edit/Save/Delete buttons using data attributes
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('edit-btn')) {
+                const itemId = e.target.dataset.itemId;
+                const quantity = parseInt(e.target.dataset.quantity);
+                const price = parseFloat(e.target.dataset.price);
+                editOrderItem(itemId, quantity, price);
+            } else if (e.target.classList.contains('save-btn')) {
+                const itemId = e.target.dataset.itemId;
+                saveOrderItem(itemId);
+            } else if (e.target.classList.contains('delete-btn')) {
+                const itemId = e.target.dataset.itemId;
+                removeOrderItem(itemId);
+            }
+        });
 
         // Payment form submission is handled in order_detail_remaining.js
         // to avoid duplicate event listeners and double payment recording

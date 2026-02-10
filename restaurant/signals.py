@@ -1,23 +1,31 @@
-from django.db.models.signals import post_save
+"""
+Signal handlers for the restaurant app.
+Handles events like order status changes, payment updates, etc.
+"""
+
+from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
-from django.core.management import call_command
-import logging
+from .models import Order, OrderHistoryItem, MenuItem
+from django.db.models import Sum
 
-logger = logging.getLogger(__name__)
 
-from .models import OrderHistory
-
-@receiver(post_save, sender=OrderHistory)
-def auto_cluster_after_order_history(sender, instance, created, **kwargs):
+@receiver(post_save, sender=OrderHistoryItem)
+def update_menu_item_stats(sender, instance, created, **kwargs):
     """
-    Automatically run K-Means clustering when a new order is added to history.
-    This ensures menu item demand tiers are always up-to-date.
+    Update MenuItem stats when an OrderHistoryItem is created or updated.
+    This keeps track of total orders and quantities.
     """
     if created:
         try:
-            # Run clustering silently (without verbose output)
-            call_command('cluster_menu_items', verbosity=0)
-            logger.info(f"Auto-clustering triggered after OrderHistory #{instance.order_id} was created")
+            menu_item = instance.item
+            if menu_item:
+                # Update order count and total quantity
+                menu_item.order_count = OrderHistoryItem.objects.filter(
+                    item=menu_item
+                ).values('order_history_id').distinct().count()
+                menu_item.save(update_fields=['order_count'])
         except Exception as e:
-            logger.error(f"Error during auto-clustering after order history: {str(e)}")
-            # Don't raise the error - we don't want order completion to fail due to clustering issues
+            pass  # Silently fail to avoid blocking order completion
+
+
+# Add more signal handlers as needed
