@@ -10,6 +10,19 @@ SECRET_KEY = config('SECRET_KEY', default='your-secret-key-here')
 DEBUG = config('DEBUG', default=True, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='127.0.0.1,localhost,testserver', cast=lambda v: [s.strip() for s in v.split(',')])
 
+# If deployed on Render, include the external URL host automatically
+try:
+    from urllib.parse import urlparse
+except Exception:
+    urlparse = None
+
+RENDER_EXTERNAL_URL = config('RENDER_EXTERNAL_URL', default=None)
+if RENDER_EXTERNAL_URL and urlparse is not None:
+    parsed = urlparse(RENDER_EXTERNAL_URL)
+    host = parsed.hostname
+    if host and host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(host)
+
 # Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
