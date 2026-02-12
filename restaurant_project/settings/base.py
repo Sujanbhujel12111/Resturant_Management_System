@@ -8,7 +8,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Security Settings
 SECRET_KEY = config('SECRET_KEY', default='your-secret-key-here')
 DEBUG = config('DEBUG', default=True, cast=bool)
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='127.0.0.1,localhost,testserver', cast=lambda v: [s.strip() for s in v.split(',')])
+
+# Parse ALLOWED_HOSTS from environment variable
+_allowed_hosts_str = config('ALLOWED_HOSTS', default='127.0.0.1,localhost,testserver')
+ALLOWED_HOSTS = [s.strip() for s in _allowed_hosts_str.split(',')]
 
 # Add platform-specific hosts (Railway, Render, etc.)
 # Railway sets RAILWAY_PUBLIC_DOMAIN environment variable
@@ -20,6 +23,26 @@ if _railway_domain and _railway_domain not in ALLOWED_HOSTS:
 _custom_domain = config('CUSTOM_DOMAIN', default=None)
 if _custom_domain and _custom_domain not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append(_custom_domain)
+
+# If running on Railway (detect by checking for Railway environment vars)
+# Add a permissive pattern for Railway domains since domain names are dynamic
+_is_railway = 'RAILWAY' in os.environ or 'railway' in os.environ.get('PATH', '').lower()
+if _is_railway:
+    # Add all possible Railway domains that might be generated
+    # Railway domains follow the pattern: web-production-XXXX.up.railway.app
+    import socket
+    try:
+        _hostname = socket.gethostname()
+        if _hostname and _hostname not in ALLOWED_HOSTS:
+            ALLOWED_HOSTS.append(_hostname)
+    except:
+        pass
+    
+    # Also add localhost for Railway's internal communication
+    if 'localhost' not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append('localhost')
+    if '127.0.0.1' not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append('127.0.0.1')
 
 # Application definition
 INSTALLED_APPS = [
