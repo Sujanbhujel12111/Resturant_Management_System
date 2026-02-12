@@ -95,14 +95,13 @@ DATABASES = {
         'CONN_MAX_AGE': 600,  # Close connections after 10 minutes
         'ATOMIC_REQUESTS': False,
         # Connection parameters for reliability
+        # Only include options supported by libpq/psycopg2 as DSN params.
+        # For server-side settings like statement_timeout, use the `options` DSN flag.
         'OPTIONS': {
             'connect_timeout': 10,  # 10 second timeout for connection attempts
             'sslmode': 'require' if _db_host and 'supabase' in _db_host else 'disable',  # Require SSL for Supabase
-            # TCP Keepalive settings for connection stability
-            'tcp_keepalives': 1,
-            'tcp_keepalives_idle': 30,
-            'tcp_keepalives_interval': 10,
-            'tcp_keepalives_count': 5,
+            # Set statement_timeout on server via libpq options (milliseconds)
+            'options': '-c statement_timeout=30000',
         }
     }
 }
