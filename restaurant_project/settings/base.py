@@ -103,61 +103,84 @@ _db_name = config('DB_NAME', default='postgres')
 _db_user = config('DB_USER', default='postgres')
 _db_password = config('DB_PASSWORD', default='')
 
-# Automatic fallback from pooler to direct endpoint
-# If pooler endpoint is configured, also set up direct endpoint as fallback
-# This handles cases where the pooler is temporarily unavailable
-_use_direct_endpoint = False
-if _db_host and 'pooler' in _db_host:
-    # Convert pooler endpoint to direct endpoint
-    # pooler.supabase.co → supabase.co (remove the "pooler" part)
-    _direct_host = _db_host.replace('.pooler.supabase.co', '.supabase.co')
-    if _direct_host != _db_host:
-        # We have a valid fallback endpoint
-        pass
-else:
-    _direct_host = _db_host
+# Derive pooler and direct hosts for Supabase
+# Prefer pooler host by default when possible, keep direct as fallback
+_direct_host = _db_host
+_pooler_host = _db_host
+if _db_host and 'supabase.co' in _db_host:
+    if 'pooler' in _db_host:
+        # DB_HOST already points to pooler
+        _pooler_host = _db_host
+        _direct_host = _db_host.replace('.pooler.supabase.co', '.supabase.co') if '.pooler.supabase.co' in _db_host else _db_host
+    else:
+        # DB_HOST is direct: construct the pooler variant and prefer it
+        _direct_host = _db_host
+        # e.g. db.xyz.supabase.co -> db.xyz.pooler.supabase.co
+        _pooler_host = _db_host.replace('.supabase.co', '.pooler.supabase.co')
 
-# Enhanced database configuration with connection pooling and timeouts
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': _db_name,
-        'USER': _db_user,
-        'PASSWORD': _db_password,
-        'HOST': _db_host,
-        'PORT': _db_port,
-        # Connection pooling - reduced idle timeout for Render's constraints
-        'CONN_MAX_AGE': 600,  # Close connections after 10 minutes
-        'ATOMIC_REQUESTS': False,
-        # Connection parameters for reliability
-        # Only include options supported by libpq/psycopg2 as DSN params.
-        # For server-side settings like statement_timeout, use the `options` DSN flag.
-        'OPTIONS': {
-            'connect_timeout': 10,  # 10 second timeout for connection attempts
-            'sslmode': 'require' if _db_host and 'supabase' in _db_host else 'disable',  # Require SSL for Supabase
-            # Set statement_timeout on server via libpq options (milliseconds)
-            'options': '-c statement_timeout=30000',
+# Database selection: enable Supabase/external Postgres when configured
+# Priority: explicit USE_SUPABASE env var -> DB_HOST presence -> default False
+_use_supabase_env = config('USE_SUPABASE', default=None)
+_db_host_env = config('DB_HOST', default='')
+
+if _use_supabase_env is None:
+    # Auto-enable if DB_HOST is set
+    USE_SUPABASE = bool(_db_host_env)
+else:
+    USE_SUPABASE = config('USE_SUPABASE', default=False, cast=bool)
+
+if USE_SUPABASE:
+    # Resolve DB host and attempt fallback from pooler -> direct if DNS fails
+    import socket
+
+    _configured_db_host = config('DB_HOST', default='')
+    _db_host_to_use = _configured_db_host
+
+    def _resolves(hostname):
+        try:
+            socket.getaddrinfo(hostname, None)
+            return True
+        except Exception:
+            return False
+
+    if _configured_db_host:
+        if not _resolves(_configured_db_host):
+            # Try pooler -> direct fallback
+            if '.pooler.supabase.co' in _configured_db_host:
+                _candidate = _configured_db_host.replace('.pooler.supabase.co', '.supabase.co')
+                if _resolves(_candidate):
+                    _db_host_to_use = _candidate
+            else:
+                # If direct failed, try pooler variant
+                _candidate = _configured_db_host.replace('.supabase.co', '.pooler.supabase.co')
+                if _resolves(_candidate):
+                    _db_host_to_use = _candidate
+
+    # Basic external Postgres configuration (expect DB_HOST, DB_NAME, DB_USER, DB_PASSWORD, DB_PORT)
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': config('DB_NAME', default='postgres'),
+            'USER': config('DB_USER', default='postgres'),
+            'PASSWORD': config('DB_PASSWORD', default=''),
+            'HOST': _db_host_to_use,
+            'PORT': config('DB_PORT', default='5432'),
+            'CONN_MAX_AGE': 600,
+            'ATOMIC_REQUESTS': False,
+            'OPTIONS': {
+                'connect_timeout': 10,
+                'sslmode': 'require' if 'supabase' in (_db_host_to_use or '') else 'disable',
+            }
         }
     }
-}
-
-# Add fallback database configuration using direct endpoint
-if _direct_host and _direct_host != _db_host:
-    DATABASES['fallback'] = {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': _db_name,
-        'USER': _db_user,
-        'PASSWORD': _db_password,
-        'HOST': _direct_host,  # Direct endpoint instead of pooler
-        'PORT': 5432,  # Ensure correct port for direct endpoint (not 6543)
-        'CONN_MAX_AGE': 600,
-        'ATOMIC_REQUESTS': False,
-        'OPTIONS': {
-            'connect_timeout': 10,
-            'sslmode': 'require',
-            'options': '-c statement_timeout=30000',
-            # Prefer IPv4 over IPv6 on Render
-            'fallback_application_name': 'django',
+    # Enable router only when using external DB (fallback router will route to direct if needed)
+    DATABASE_ROUTERS = ['restaurant_project.db_router.PoolerFallbackRouter']
+else:
+    # Use local SQLite during development or when not using Supabase
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
         }
     }
 
