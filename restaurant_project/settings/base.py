@@ -110,6 +110,12 @@ DATABASES = {
 }
 
 # Logging configuration for database connection debugging
+# Note: File logging is disabled on Render due to ephemeral filesystem
+# File logs only work on local development
+
+_logs_dir = os.path.join(BASE_DIR, 'logs')
+_has_logs_dir = os.path.exists(_logs_dir)
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -128,12 +134,6 @@ LOGGING = {
             'class': 'logging.StreamHandler',
             'formatter': 'verbose',
         },
-        'file': {
-            'class': 'logging.FileHandler',
-            'filename': os.path.join(BASE_DIR, 'logs', 'django.log'),
-            'formatter': 'verbose',
-            'level': 'DEBUG',
-        },
     },
     'root': {
         'handlers': ['console'],
@@ -141,17 +141,28 @@ LOGGING = {
     },
     'loggers': {
         'django': {
-            'handlers': ['console', 'file'] if not DEBUG else ['console'],
+            'handlers': ['console'],
             'level': 'INFO',
             'propagate': False,
         },
         'django.db.backends': {
-            'handlers': ['console', 'file'] if not DEBUG else ['console'],
+            'handlers': ['console'],
             'level': 'DEBUG' if DEBUG else 'INFO',
             'propagate': False,
         },
     },
 }
+
+# Add file handler only if logs directory exists (local development)
+if _has_logs_dir and DEBUG:
+    LOGGING['handlers']['file'] = {
+        'class': 'logging.FileHandler',
+        'filename': os.path.join(_logs_dir, 'django.log'),
+        'formatter': 'verbose',
+        'level': 'DEBUG',
+    }
+    LOGGING['loggers']['django']['handlers'].append('file')
+    LOGGING['loggers']['django.db.backends']['handlers'].append('file')
 
 # Authentication
 AUTH_PASSWORD_VALIDATORS = [
