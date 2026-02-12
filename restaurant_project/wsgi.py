@@ -26,6 +26,15 @@ logger = logging.getLogger(__name__)
 try:
     application = get_wsgi_application()
     logger.info("Django application initialized successfully")
+    
+    # Check pooler health and set up fallback if needed
+    try:
+        from restaurant_project.db_router import check_pooler_health_on_startup, get_active_db_host
+        check_pooler_health_on_startup()
+        logger.info(f"Database: {get_active_db_host()}")
+    except Exception as e:
+        logger.warning(f"Could not check pooler health: {e}")
+        
 except Exception as e:
     logger.error(f"Failed to initialize Django application: {str(e)}", exc_info=True)
     raise

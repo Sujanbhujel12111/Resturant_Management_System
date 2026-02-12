@@ -72,7 +72,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'restaurant_project.wsgi.application'
 
-# Database - Supabase PostgreSQL with improved connection handling
+# Database - Supabase PostgreSQL with improved connection handling and fallback
 import ssl
 
 # Get database configuration from environment
@@ -81,6 +81,20 @@ _db_port = config('DB_PORT', default='5432', cast=int)
 _db_name = config('DB_NAME', default='postgres')
 _db_user = config('DB_USER', default='postgres')
 _db_password = config('DB_PASSWORD', default='')
+
+# Automatic fallback from pooler to direct endpoint
+# If pooler endpoint is configured, also set up direct endpoint as fallback
+# This handles cases where the pooler is temporarily unavailable
+_use_direct_endpoint = False
+if _db_host and 'pooler' in _db_host:
+    # Convert pooler endpoint to direct endpoint
+    # pooler.supabase.co → supabase.co (remove the "pooler" part)
+    _direct_host = _db_host.replace('.pooler.supabase.co', '.supabase.co')
+    if _direct_host != _db_host:
+        # We have a valid fallback endpoint
+        pass
+else:
+    _direct_host = _db_host
 
 # Enhanced database configuration with connection pooling and timeouts
 DATABASES = {
@@ -105,6 +119,24 @@ DATABASES = {
         }
     }
 }
+
+# Add fallback database configuration using direct endpoint
+if _direct_host and _direct_host != _db_host:
+    DATABASES['fallback'] = {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': _db_name,
+        'USER': _db_user,
+        'PASSWORD': _db_password,
+        'HOST': _direct_host,  # Direct endpoint instead of pooler
+        'PORT': _db_port,
+        'CONN_MAX_AGE': 600,
+        'ATOMIC_REQUESTS': False,
+        'OPTIONS': {
+            'connect_timeout': 10,
+            'sslmode': 'require',
+            'options': '-c statement_timeout=30000',
+        }
+    }
 
 # Logging configuration for database connection debugging
 # Note: File logging is disabled on Render due to ephemeral filesystem
@@ -173,6 +205,9 @@ AUTH_USER_MODEL = 'accounts.User'
 LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/accounts/profile/'
 LOGOUT_REDIRECT_URL = 'login'
+
+# Database router for pooler fallback handling
+DATABASE_ROUTERS = ['restaurant_project.db_router.PoolerFallbackRouter']
 
 # Internationalization
 LANGUAGE_CODE = 'en-us'
