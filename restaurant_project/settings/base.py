@@ -39,6 +39,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    'restaurant.middleware.DatabaseHealthMiddleware',  # Add early to catch DB errors
     'django.contrib.sessions.middleware.SessionMiddleware',
     'restaurant.middleware.TimezoneMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -71,16 +72,85 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'restaurant_project.wsgi.application'
 
-# Database - Supabase PostgreSQL
+# Database - Supabase PostgreSQL with improved connection handling
+import ssl
+
+# Get database configuration from environment
+_db_host = config('DB_HOST', default='')
+_db_port = config('DB_PORT', default='5432', cast=int)
+_db_name = config('DB_NAME', default='postgres')
+_db_user = config('DB_USER', default='postgres')
+_db_password = config('DB_PASSWORD', default='')
+
+# Enhanced database configuration with connection pooling and timeouts
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('DB_NAME', default='postgres'),
-        'USER': config('DB_USER', default='postgres'),
-        'PASSWORD': config('DB_PASSWORD', default=''),
-        'HOST': config('DB_HOST', default=''),
-        'PORT': config('DB_PORT', default='5432'),
+        'NAME': _db_name,
+        'USER': _db_user,
+        'PASSWORD': _db_password,
+        'HOST': _db_host,
+        'PORT': _db_port,
+        # Connection pooling - reduced idle timeout for Render's constraints
+        'CONN_MAX_AGE': 600,  # Close connections after 10 minutes
+        'ATOMIC_REQUESTS': False,
+        # Connection parameters for reliability
+        'OPTIONS': {
+            'connect_timeout': 10,  # 10 second timeout for connection attempts
+            'sslmode': 'require' if _db_host and 'supabase' in _db_host else 'disable',  # Require SSL for Supabase
+            # Connection pooling optimizations
+            'statement_timeout': 30000,  # 30 second statement timeout in milliseconds
+            # Keepalive settings
+            'tcp_keepalives': 1,
+            'tcp_keepalives_idle': 30,
+            'tcp_keepalives_interval': 10,
+            'tcp_keepalives_count': 5,
+        }
     }
+}
+
+# Logging configuration for database connection debugging
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'file': {
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs', 'django.log'),
+            'formatter': 'verbose',
+            'level': 'DEBUG',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'file'] if not DEBUG else ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'django.db.backends': {
+            'handlers': ['console', 'file'] if not DEBUG else ['console'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+    },
 }
 
 # Authentication
