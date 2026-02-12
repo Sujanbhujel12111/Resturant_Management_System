@@ -10,18 +10,16 @@ SECRET_KEY = config('SECRET_KEY', default='your-secret-key-here')
 DEBUG = config('DEBUG', default=True, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='127.0.0.1,localhost,testserver', cast=lambda v: [s.strip() for s in v.split(',')])
 
-# If deployed on Render, include the external URL host automatically
-try:
-    from urllib.parse import urlparse
-except Exception:
-    urlparse = None
+# Add platform-specific hosts (Railway, Render, etc.)
+# Railway sets RAILWAY_PUBLIC_DOMAIN environment variable
+_railway_domain = config('RAILWAY_PUBLIC_DOMAIN', default=None)
+if _railway_domain and _railway_domain not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(_railway_domain)
 
-RENDER_EXTERNAL_URL = config('RENDER_EXTERNAL_URL', default=None)
-if RENDER_EXTERNAL_URL and urlparse is not None:
-    parsed = urlparse(RENDER_EXTERNAL_URL)
-    host = parsed.hostname
-    if host and host not in ALLOWED_HOSTS:
-        ALLOWED_HOSTS.append(host)
+# Support for custom domain via environment variable
+_custom_domain = config('CUSTOM_DOMAIN', default=None)
+if _custom_domain and _custom_domain not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(_custom_domain)
 
 # Application definition
 INSTALLED_APPS = [
@@ -128,13 +126,15 @@ if _direct_host and _direct_host != _db_host:
         'USER': _db_user,
         'PASSWORD': _db_password,
         'HOST': _direct_host,  # Direct endpoint instead of pooler
-        'PORT': _db_port,
+        'PORT': 5432,  # Ensure correct port for direct endpoint (not 6543)
         'CONN_MAX_AGE': 600,
         'ATOMIC_REQUESTS': False,
         'OPTIONS': {
             'connect_timeout': 10,
             'sslmode': 'require',
             'options': '-c statement_timeout=30000',
+            # Prefer IPv4 over IPv6 on Render
+            'fallback_application_name': 'django',
         }
     }
 

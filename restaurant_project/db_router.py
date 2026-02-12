@@ -52,12 +52,14 @@ class PoolerFallbackRouter:
             return True
         except (OperationalError, DatabaseError) as e:
             error_msg = str(e).lower()
-            # Check for DNS/connectivity errors
+            # Check for DNS/connectivity errors that indicate unreachable endpoint
             if any(keyword in error_msg for keyword in [
                 'could not translate host name',
                 'name or service not known',
                 'connection refused',
                 'connection timeout',
+                'network is unreachable',
+                'no route to host',
             ]):
                 return False
             # Re-raise other database errors
@@ -70,26 +72,43 @@ def check_pooler_health_on_startup():
     """
     Check pooler health at startup.
     If pooler fails, mark fallback for use.
+    Only use fallback if pooler is completely unreachable.
     """
     from django.conf import settings
     
     # Only do this if we have a fallback database configured
     if 'fallback' not in settings.DATABASES:
+        logger.info("✓ No fallback database configured")
         return
     
-    logger.info("Checking Supabase pooler connection health...")
+    logger.info("Checking Supabase pooler connection...")
     router = PoolerFallbackRouter()
     
-    # Test pooler connection
+    # Always start with pooler - it's more reliable and scalable
+    logger.info("Using pooler endpoint (primary)")
+    
+    # Test pooler connection in background, decide on fallback only if it truly fails
     try:
         if router.test_connection('default'):
             logger.info("✓ Pooler endpoint is healthy")
+            return
         else:
             logger.warning("⚠ Pooler endpoint is unreachable")
-            logger.info("🔄 Will use direct endpoint as fallback")
-            _thread_local.using_fallback = True
+            
+            # Test if fallback is available
+            try:
+                if router.test_connection('fallback'):
+                    logger.warning("🔄 Switching to direct endpoint as fallback")
+                    _thread_local.using_fallback = True
+                else:
+                    logger.error("❌ Both pooler and direct endpoints are unreachable")
+                    logger.warning("⚠ Attempting to continue with pooler (may fail at runtime)")
+            except Exception as e:
+                logger.warning(f"⚠ Could not test fallback: {e}")
+                
     except Exception as e:
-        logger.error(f"Error testing pooler: {e}")
+        logger.error(f"Error checking pooler health: {e}")
+        logger.warning("Proceeding with pooler as primary database")
 
 
 def get_active_db_alias():
