@@ -98,9 +98,7 @@ DATABASES = {
         'OPTIONS': {
             'connect_timeout': 10,  # 10 second timeout for connection attempts
             'sslmode': 'require' if _db_host and 'supabase' in _db_host else 'disable',  # Require SSL for Supabase
-            # Connection pooling optimizations
-            'statement_timeout': 30000,  # 30 second statement timeout in milliseconds
-            # Keepalive settings
+            # TCP Keepalive settings for connection stability
             'tcp_keepalives': 1,
             'tcp_keepalives_idle': 30,
             'tcp_keepalives_interval': 10,
