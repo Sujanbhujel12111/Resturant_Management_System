@@ -1,14 +1,17 @@
 /* Menu Item Form Template Styles - Teal Theme */
 
 .menuitem-form-container {
-    padding: 1.5rem;
+    padding: 1rem 1.5rem;
     min-height: 100vh;
     background: #f8f9fa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .menuitem-form-wrapper {
-    max-width: 40rem;
-    margin: 0 auto;
+    max-width: 50rem;
+    width: 100%;
 }
 
 .menuitem-form-back-link {
@@ -18,10 +21,11 @@
     color: #17a2b8;
     text-decoration: none;
     font-weight: 600;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
     transition: all 0.3s ease;
-    padding: 0.5rem 1rem;
+    padding: 0.4rem 0.8rem;
     border-radius: 8px;
+    font-size: 0.9rem;
 }
 
 .menuitem-form-back-link:hover {
@@ -38,27 +42,27 @@
 }
 
 .menuitem-form-card-body {
-    padding: 2rem;
+    padding: 1.5rem;
 }
 
 .menuitem-form-title {
-    font-size: 1.5rem;
+    font-size: 1.35rem;
     font-weight: 700;
     color: #0c5460;
     text-align: center;
-    margin-bottom: 2rem;
+    margin-bottom: 1.25rem;
 }
 
 .menuitem-form-group {
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
 }
 
 .menuitem-form-label {
     display: block;
     font-weight: 600;
     color: #0c5460;
-    font-size: 0.95rem;
-    margin-bottom: 0.6rem;
+    font-size: 0.9rem;
+    margin-bottom: 0.4rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
@@ -67,10 +71,10 @@
 .menuitem-form-select,
 .menuitem-form-textarea {
     width: 100%;
-    padding: 0.75rem 1rem;
+    padding: 0.65rem 0.85rem;
     border: 2px solid #e9ecef;
     border-radius: 8px;
-    font-size: 1rem;
+    font-size: 0.95rem;
     font-family: inherit;
     transition: all 0.3s ease;
 }
@@ -84,15 +88,15 @@
 }
 
 .menuitem-form-textarea {
-    min-height: 100px;
+    min-height: 70px;
     resize: vertical;
 }
 
 .menuitem-form-check {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 1rem;
+    gap: 0.6rem;
+    padding: 0.8rem;
     background: #f0f8f9;
     border-radius: 8px;
     border: 1px solid #b2ebf2;
@@ -143,9 +147,9 @@
 
 .menuitem-form-actions {
     display: flex;
-    gap: 1rem;
-    padding-top: 1.5rem;
-    margin-top: 2rem;
+    gap: 0.75rem;
+    padding-top: 1rem;
+    margin-top: 1rem;
     border-top: 1px solid #e9ecef;
     justify-content: center;
 }
@@ -154,13 +158,13 @@
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.75rem 1.75rem;
+    padding: 0.65rem 1.5rem;
     border-radius: 8px;
     font-weight: 600;
     border: none;
     cursor: pointer;
     transition: all 0.3s ease;
-    font-size: 1rem;
+    font-size: 0.95rem;
     text-decoration: none;
 }
 
@@ -187,26 +191,28 @@
 /* Responsive Design */
 @media (max-width: 768px) {
     .menuitem-form-container {
-        padding: 1rem;
+        padding: 0.75rem 1rem;
     }
 
     .menuitem-form-card-body {
-        padding: 1.5rem;
+        padding: 1.25rem;
     }
 
     .menuitem-form-actions {
         flex-direction: column;
+        gap: 0.6rem;
     }
 
     .menuitem-form-btn {
         width: 100%;
         justify-content: center;
+        padding: 0.6rem;
     }
 }
 
 @media (max-width: 600px) {
     .menuitem-form-container {
-        padding: 0.75rem;
+        padding: 0.5rem;
     }
 
     .menuitem-form-card-body {
@@ -214,44 +220,45 @@
     }
 
     .menuitem-form-title {
-        font-size: 1.3rem;
-        margin-bottom: 1.5rem;
+        font-size: 1.25rem;
+        margin-bottom: 1rem;
     }
 
     .menuitem-form-back-link {
-        margin-bottom: 1rem;
-        font-size: 0.9rem;
-        padding: 0.35rem 0.75rem;
+        margin-bottom: 0.75rem;
+        font-size: 0.85rem;
+        padding: 0.3rem 0.6rem;
     }
 
     .menuitem-form-label {
-        font-size: 0.85rem;
+        font-size: 0.8rem;
+        margin-bottom: 0.3rem;
     }
 
     .menuitem-form-input,
     .menuitem-form-select,
     .menuitem-form-textarea {
         font-size: 16px;
-        padding: 0.6rem 0.8rem;
+        padding: 0.55rem 0.7rem;
     }
 
     .menuitem-form-group {
-        margin-bottom: 1rem;
+        margin-bottom: 0.85rem;
     }
 
     .menuitem-form-check {
-        padding: 0.75rem;
-        gap: 0.5rem;
+        padding: 0.65rem;
+        gap: 0.4rem;
     }
 
     .menuitem-form-actions {
-        gap: 0.5rem;
-        padding-top: 1rem;
-        margin-top: 1.5rem;
+        gap: 0.4rem;
+        padding-top: 0.75rem;
+        margin-top: 1rem;
     }
 
     .menuitem-form-btn {
-        padding: 0.6rem 1rem;
-        font-size: 0.9rem;
+        padding: 0.55rem 0.9rem;
+        font-size: 0.85rem;
     }
 }
