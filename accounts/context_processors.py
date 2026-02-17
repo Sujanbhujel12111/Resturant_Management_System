@@ -1,4 +1,7 @@
+import logging
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 
 
 def user_permissions(request):
@@ -31,14 +34,22 @@ def user_permissions(request):
         staff = user.staff_profile
         modules = ['dashboard', 'orders', 'menu', 'kitchen', 'history', 'tables', 'takeaway', 'delivery']
         for module in modules:
-            if module == 'dashboard':
-                # Dashboard requires ALL permissions
-                perms[f"has_{module}"] = staff.has_all_permissions()
-            else:
-                # Other modules require just that module permission
-                perms[f"has_{module}"] = staff.has_module_access(module)
-    except:
+            try:
+                if module == 'dashboard':
+                    # Dashboard requires ALL permissions
+                    perms[f"has_{module}"] = staff.has_all_permissions()
+                else:
+                    # Other modules require just that module permission
+                    perms[f"has_{module}"] = staff.has_module_access(module)
+            except Exception as e:
+                # Log the error but don't fail the context processor
+                logger.warning(f"Error checking module access for user {user.username}: {str(e)}")
+                perms[f"has_{module}"] = False
+    except AttributeError:
         # User doesn't have staff profile
         pass
+    except Exception as e:
+        # Log any other unexpected errors but don't crash
+        logger.warning(f"Unexpected error in user_permissions context processor: {str(e)}")
 
     return {"user_perms": perms}

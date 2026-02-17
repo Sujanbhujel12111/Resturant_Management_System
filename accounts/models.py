@@ -45,7 +45,7 @@ class Staff(models.Model):
     
     def has_all_permissions(self):
         """Check if staff has access to ALL 8 modules"""
-        total_modules = StaffPermission.MODULE_CHOICES.__len__()
+        total_modules = len(StaffPermission.MODULE_CHOICES)
         allowed_count = self.permissions.filter(is_allowed=True).count()
         return allowed_count == total_modules
 
