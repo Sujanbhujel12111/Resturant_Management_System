@@ -10,10 +10,16 @@ def user_permissions(request):
     Returns a dict under the `user_perms` key. Example usage in templates:
       {% if user_perms.is_kitchen %} ... {% endif %}
       {% if user_perms.can_change_order %} ... {% endif %}
+      
+    Skips expensive permission checks for admin views to prevent template rendering issues.
     """
     user = getattr(request, "user", None)
     perms = {}
     if not user or not user.is_authenticated:
+        return {"user_perms": perms}
+    
+    # Skip expensive permission checks for admin views to avoid context pollution
+    if request.path.startswith('/admin/'):
         return {"user_perms": perms}
 
     group_names = ["kitchen", "orders", "menu", "place_order", "payments", "reports"]
